@@ -150,6 +150,91 @@ except ImportError:
             return input
 
 
+@torch.jit.unused
+def get_parameter_device(parameter: Union[nn.Module, GenerationMixin, "ModuleUtilsMixin"]):
+    try:
+        return next(parameter.parameters()).device
+    except StopIteration:
+        # For nn.DataParallel compatibility in PyTorch 1.5
+
+        def find_tensor_attributes(module: nn.Module) -> List[Tuple[str, Tensor]]:
+            tuples = [(k, v) for k, v in module.__dict__.items() if torch.is_tensor(v)]
+            return tuples
+
+        gen = parameter._named_members(get_members_fn=find_tensor_attributes)
+        first_tuple = next(gen)
+        return first_tuple[1].device
+
+
+@torch.jit.unused
+def get_first_parameter_dtype(parameter: Union[nn.Module, GenerationMixin, "ModuleUtilsMixin"]):
+    """
+    Returns the first parameter dtype (can be non-floating) or asserts if none were found.
+    """
+    try:
+        return next(parameter.parameters()).dtype
+    except StopIteration:
+        # For nn.DataParallel compatibility in PyTorch > 1.5
+
+        def find_tensor_attributes(module: nn.Module) -> List[Tuple[str, Tensor]]:
+            tuples = [(k, v) for k, v in module.__dict__.items() if torch.is_tensor(v)]
+            return tuples
+
+        gen = parameter._named_members(get_members_fn=find_tensor_attributes)
+        first_tuple = next(gen)
+        return first_tuple[1].dtype
+
+
+@torch.jit.unused
+def get_parameter_dtype(parameter: Union[nn.Module, GenerationMixin, "ModuleUtilsMixin"]):
+    """
+    Returns the first found floating dtype in parameters if there is one, otherwise returns the last dtype it found.
+    """
+    last_dtype = None
+    for t in parameter.parameters():
+        last_dtype = t.dtype
+        if t.is_floating_point():
+            # Adding fix for https://github.com/pytorch/xla/issues/4152
+            # Fixes issue where the model code passes a value that is out of range for XLA_USE_BF16=1
+            # and XLA_DOWNCAST_BF16=1 so the conversion would cast it to -inf
+            # NOTE: `is_torch_tpu_available()` is checked last as it induces a graph break in torch dynamo
+            if XLA_USE_BF16 in ENV_VARS_TRUE_VALUES and is_torch_tpu_available():
+                return torch.bfloat16
+            if XLA_DOWNCAST_BF16 in ENV_VARS_TRUE_VALUES and is_torch_tpu_available():
+                if t.dtype == torch.float:
+                    return torch.bfloat16
+                if t.dtype == torch.double:
+                    return torch.float32
+            return t.dtype
+
+    if last_dtype is not None:
+        # if no floating dtype was found return whatever the first dtype is
+        return last_dtype
+
+    # For nn.DataParallel compatibility in PyTorch > 1.5
+    def find_tensor_attributes(module: nn.Module) -> List[Tuple[str, Tensor]]:
+        tuples = [(k, v) for k, v in module.__dict__.items() if torch.is_tensor(v)]
+        return tuples
+
+    gen = parameter._named_members(get_members_fn=find_tensor_attributes)
+    last_tuple = None
+    for tuple in gen:
+        last_tuple = tuple
+        if tuple[1].is_floating_point():
+            return tuple[1].dtype
+
+    if last_tuple is not None:
+        # fallback to the last dtype
+        return last_tuple[1].dtype
+
+    # fallback to buffer dtype
+    for t in parameter.buffers():
+        last_dtype = t.dtype
+        if t.is_floating_point():
+            return t.dtype
+    return last_dtype
+
+
 def get_state_dict_float_dtype(state_dict):
     """
     Returns the first found floating dtype in `state_dict` or asserts if none were found.
@@ -707,6 +792,7 @@ class ModuleUtilsMixin:
             module.mem_rss_post_forward = 0
             module.mem_rss_pre_forward = 0
 
+    @torch.jit.unused
     @property
     def device(self) -> torch.device:
         """
@@ -715,6 +801,7 @@ class ModuleUtilsMixin:
         """
         return get_parameter_device(self)
 
+    @torch.jit.unused
     @property
     def dtype(self) -> torch.dtype:
         """
