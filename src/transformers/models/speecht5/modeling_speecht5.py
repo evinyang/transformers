@@ -985,7 +985,7 @@ class SpeechT5Attention(nn.Module):
             attn_weights = layer_head_mask.view(1, -1, 1, 1) * attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
             attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
 
-        if output_attentions:
+        if output_attentions == True:
             # this operation is a bit awkward, but it's required to
             # make sure that attn_weights keeps its gradient.
             # In order to do so, attn_weights have to be reshaped
@@ -1130,7 +1130,7 @@ class SpeechT5CrossAttention(nn.Module):
             attn_weights = layer_head_mask.view(1, -1, 1, 1) * attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
             attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
 
-        if output_attentions:
+        if output_attentions == True:
             # this operation is a bit awkward, but it's required to
             # make sure that attn_weights keeps its gradient.
             # In order to do so, attn_weights have to be reshaped
@@ -1241,7 +1241,7 @@ class SpeechT5EncoderLayer(nn.Module):
 
         outputs = (hidden_states,)
 
-        if output_attentions:
+        if output_attentions == True:
             outputs += (attn_weights,)
 
         return outputs
@@ -1346,7 +1346,7 @@ class SpeechT5DecoderLayer(nn.Module):
 
         outputs = (hidden_states,)
 
-        if output_attentions:
+        if output_attentions == True:
             outputs += (self_attn_weights, cross_attn_weights)
 
         if use_cache:
@@ -1512,7 +1512,7 @@ class SpeechT5Encoder(SpeechT5PreTrainedModel):
             if skip_the_layer:
                 layer_outputs = (None, None)
 
-            if output_attentions:
+            if output_attentions == True:
                 all_self_attentions = all_self_attentions + (layer_outputs[1],)
 
         if output_hidden_states:
@@ -1831,7 +1831,7 @@ class SpeechT5Decoder(SpeechT5PreTrainedModel):
             if use_cache:
                 next_decoder_cache += (layer_outputs[3 if output_attentions else 1],)
 
-            if output_attentions:
+            if output_attentions == True:
                 all_self_attentions = all_self_attentions + (layer_outputs[1],)
 
                 if encoder_hidden_states is not None:
