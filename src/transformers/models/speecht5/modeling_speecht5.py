@@ -84,17 +84,27 @@ def shift_spectrograms_right(input_values: torch.Tensor, reduction_factor: int =
 
 
 # Copied from transformers.models.bart.modeling_bart._make_causal_mask
+# https://github.com/pytorch/pytorch/issues/25661#issuecomment-845419189
 def _make_causal_mask(
-    bsz: int, tgt_len: int, dtype: torch.dtype, device: torch.device, past_key_values_length: int = 0
+    bsz: int, tgt_len: int, dtype: torch.dtype, device: torch.device, past_key_values_length: int = 0,
+    min16: float = torch.finfo(torch.float16).min,
+    min32: float = torch.finfo(torch.float32).min,
+    min64: float = torch.finfo(torch.float64).min,
 ):
     """
     Make causal mask used for bi-directional self-attention.
     """
-    mask = torch.full((tgt_len, tgt_len), torch.tensor(torch.finfo(dtype).min, device=device), device=device)
+    if dtype == torch.float16:
+        mask = torch.full((tgt_len, tgt_len), torch.tensor(min16, device=device), device=device)
+    elif dtype == torch.float32:
+        mask = torch.full((tgt_len, tgt_len), torch.tensor(min32, device=device), device=device)
+    elif dtype == torch.float64:
+        mask = torch.full((tgt_len, tgt_len), torch.tensor(min64, device=device), device=device)
+    else:
+        raise RuntimeError(f"Expected dtype to be floating-point, got {dtype}")
     mask_cond = torch.arange(mask.size(-1), device=device)
     mask.masked_fill_(mask_cond < (mask_cond + 1).view(mask.size(-1), 1), 0)
     mask = mask.to(dtype)
-
     if past_key_values_length > 0:
         mask = torch.cat([torch.zeros(tgt_len, past_key_values_length, dtype=dtype, device=device), mask], dim=-1)
     return mask[None, None, :, :].expand(bsz, 1, tgt_len, tgt_len + past_key_values_length)
