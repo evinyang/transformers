@@ -1304,7 +1304,8 @@ class SpeechT5DecoderLayer(nn.Module):
             hidden_states = self.encoder_attn_layer_norm(hidden_states)
 
             # add cross-attn to positions 3,4 of present_key_value tuple
-            return_key_value = present_key_value! + cross_attn_present_key_value!
+            assert present_key_value is not None and cross_attn_present_key_value is not None
+            return_key_value = present_key_value + cross_attn_present_key_value
 
         # Fully Connected
         hidden_states = hidden_states + self.feed_forward(hidden_states)
