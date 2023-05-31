@@ -1887,14 +1887,13 @@ class SpeechT5Model(SpeechT5PreTrainedModel):
 
 
 def _generate_speech(
-    model: SpeechT5PreTrainedModel,
+    model: SpeechT5ForTextToSpeech,
     input_values: torch.FloatTensor,
     speaker_embeddings: Optional[torch.FloatTensor] = None,
     threshold: float = 0.5,
     minlenratio: float = 0.0,
     maxlenratio: float = 20.0,
-    vocoder: Optional[nn.Module] = None,
-) -> Union[torch.FloatTensor, Tuple[torch.FloatTensor, torch.FloatTensor]]:
+) -> torch.FloatTensor:
     encoder_attention_mask = torch.ones_like(input_values)
 
     encoder_last_hidden_state = model.speecht5.encoder(
@@ -1910,11 +1909,8 @@ def _generate_speech(
 
     spectrogram = []
     past_key_values = None
-    idx = 0
 
-    while True:
-        idx += 1
-
+    for idx in range(maxlen + 1):
         # Run the decoder prenet on the entire output sequence.
         decoder_hidden_states = model.speecht5.decoder.prenet(output_sequence, speaker_embeddings)
 
@@ -1941,18 +1937,13 @@ def _generate_speech(
         prob = torch.sigmoid(model.speech_decoder_postnet.prob_out(last_decoder_output))
 
         # Finished when stop token or maximum length is reached.
-        if idx >= minlen and (int(sum(prob >= threshold)) > 0 or idx >= maxlen):
-            spectrogram = torch.cat(spectrogram, dim=0).unsqueeze(0)
-            spectrogram = model.speech_decoder_postnet.postnet(spectrogram)
-            spectrogram = spectrogram.squeeze(0)
+        if idx >= minlen and int(sum(prob >= threshold)) > 0:
             break
 
-    if vocoder is not None:
-        outputs = vocoder(spectrogram)
-    else:
-        outputs = spectrogram
-
-    return outputs
+    spectrogram = torch.cat(spectrogram, dim=0).unsqueeze(0)
+    spectrogram = model.speech_decoder_postnet.postnet(spectrogram)
+    spectrogram = spectrogram.squeeze(0)
+    return spectrogram
 
 
 @add_start_docstrings(
@@ -1991,116 +1982,15 @@ class SpeechT5ForTextToSpeech(SpeechT5PreTrainedModel):
     def get_decoder(self):
         return self.speecht5.get_decoder()
 
-    @add_start_docstrings_to_model_forward(SPEECHT5_INPUTS_DOCSTRING)
-    def forward(
-        self,
-        input_ids: Optional[torch.LongTensor] = None,
-        attention_mask: Optional[torch.LongTensor] = None,
-        decoder_input_values: Optional[torch.FloatTensor] = None,
-        decoder_attention_mask: Optional[torch.LongTensor] = None,
-        head_mask: Optional[torch.FloatTensor] = None,
-        decoder_head_mask: Optional[torch.FloatTensor] = None,
-        cross_attn_head_mask: Optional[torch.Tensor] = None,
-        encoder_outputs: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
-        past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
-        speaker_embeddings: Optional[torch.FloatTensor] = None,
-        labels: Optional[torch.FloatTensor] = None,
-        stop_labels: Optional[torch.Tensor] = None,
-    ) -> Tuple:
-        r"""
-        input_ids (`torch.LongTensor` of shape `(batch_size, sequence_length)`):
-            Indices of input sequence tokens in the vocabulary. The `batch_size` should be 1 currently.
-
-            Indices can be obtained using [`SpeechT5Tokenizer`]. See [`~PreTrainedTokenizer.encode`] and
-            [`~PreTrainedTokenizer.__call__`] for details.
-
-            [What are input IDs?](../glossary#input-ids)
-        decoder_input_values (`torch.FloatTensor` of shape `(batch_size, sequence_length, config.num_mel_bins)`):
-            Float values of input mel spectrogram.
-
-            SpeechT5 uses an all-zero spectrum as the starting token for `decoder_input_values` generation. If
-            `past_key_values` is used, optionally only the last `decoder_input_values` have to be input (see
-            `past_key_values`).
-        speaker_embeddings (`torch.FloatTensor` of shape `(batch_size, config.speaker_embedding_dim)`, *optional*):
-            Tensor containing the speaker embeddings.
-        labels (`torch.FloatTensor` of shape `(batch_size, sequence_length, config.num_mel_bins)`, *optional*):
-            Float values of target mel spectrogram. Timesteps set to `-100.0` are ignored (masked) for the loss
-            computation. Spectrograms can be obtained using [`SpeechT5Processor`]. See [`SpeechT5Processor.__call__`]
-            for details.
-
-        Returns:
-
-        Example:
-
-        ```python
-        >>> from transformers import SpeechT5Processor, SpeechT5ForTextToSpeech, SpeechT5HifiGan, set_seed
-        >>> import torch
-
-        >>> processor = SpeechT5Processor.from_pretrained("microsoft/speecht5_tts")
-        >>> model = SpeechT5ForTextToSpeech.from_pretrained("microsoft/speecht5_tts")
-        >>> vocoder = SpeechT5HifiGan.from_pretrained("microsoft/speecht5_hifigan")
-
-        >>> inputs = processor(text="Hello, my dog is cute", return_tensors="pt")
-        >>> speaker_embeddings = torch.zeros((1, 512))  # or load xvectors from a file
-
-        >>> set_seed(555)  # make deterministic
-
-        >>> # generate speech
-        >>> speech = model.generate_speech(inputs["input_ids"], speaker_embeddings, vocoder=vocoder)
-        >>> speech.shape
-        torch.Size([15872])
-        ```
-        """
-        if stop_labels is not None:
-            warnings.warn(
-                "The argument `stop_labels` is deprecated and will be removed in version 4.30.0 of Transformers",
-                FutureWarning,
-            )
-
-        if labels is not None:
-            if decoder_input_values is None:
-                decoder_input_values = shift_spectrograms_right(labels, self.config.reduction_factor)
-
-        outputs = self.speecht5(
-            input_values=input_ids,
-            attention_mask=attention_mask,
-            decoder_input_values=decoder_input_values,
-            decoder_attention_mask=decoder_attention_mask,
-            head_mask=head_mask,
-            decoder_head_mask=decoder_head_mask,
-            cross_attn_head_mask=cross_attn_head_mask,
-            encoder_outputs=encoder_outputs,
-            past_key_values=past_key_values,
-            speaker_embeddings=speaker_embeddings,
-        )
-
-        outputs_before_postnet, outputs_after_postnet, logits = self.speech_decoder_postnet(outputs[0])
-
-        loss = None
-        if labels is not None:
-            criterion = SpeechT5SpectrogramLoss(self.config)
-            loss = criterion(
-                attention_mask,
-                outputs_before_postnet,
-                outputs_after_postnet,
-                logits,
-                labels,
-                outputs.cross_attentions,
-            )
-
-        output = (outputs_after_postnet,) + outputs[1:]
-        return ((loss,) + output) if loss is not None else output
-
     @torch.no_grad()
-    def generate_speech(
+    def forward(
         self,
         input_ids: torch.LongTensor,
         speaker_embeddings: Optional[torch.FloatTensor] = None,
         threshold: float = 0.5,
         minlenratio: float = 0.0,
         maxlenratio: float = 20.0,
-        vocoder: Optional[nn.Module] = None,
-    ) -> Union[torch.FloatTensor, Tuple[torch.FloatTensor, torch.FloatTensor]]:
+    ) -> torch.FloatTensor:
         r"""
         Converts a sequence of input tokens into a sequence of mel spectrograms, which are subsequently turned into a
         speech waveform using a vocoder.
@@ -2121,16 +2011,11 @@ class SpeechT5ForTextToSpeech(SpeechT5PreTrainedModel):
                 Used to calculate the minimum required length for the output sequence.
             maxlenratio (`float`, *optional*, defaults to 20.0):
                 Used to calculate the maximum allowed length for the output sequence.
-            vocoder (`nn.Module`, *optional*, defaults to `None`):
-                The vocoder that converts the mel spectrogram into a speech waveform. If `None`, the output is the mel
-                spectrogram.
 
         Returns:
-            `tuple(torch.FloatTensor)` comprising various elements depending on the inputs:
+            `tuple(torch.FloatTensor)`:
             - **spectrogram** (*optional*, returned when no `vocoder` is provided) `torch.FloatTensor` of shape
               `(output_sequence_length, config.num_mel_bins)` -- The predicted log-mel spectrogram.
-            - **waveform** (*optional*, returned when a `vocoder` is provided) `torch.FloatTensor` of shape
-              `(num_frames,)` -- The predicted speech waveform.
         """
         return _generate_speech(
             self,
@@ -2139,7 +2024,6 @@ class SpeechT5ForTextToSpeech(SpeechT5PreTrainedModel):
             threshold,
             minlenratio,
             maxlenratio,
-            vocoder,
         )
 
 
