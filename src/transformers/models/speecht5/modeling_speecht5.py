@@ -1313,7 +1313,7 @@ class SpeechT5DecoderLayer(nn.Module):
 
         outputs = (hidden_states,)
 
-        if use_cache:
+        if use_cache is not None and use_cache:
             outputs += (return_key_value,)
 
         return outputs
