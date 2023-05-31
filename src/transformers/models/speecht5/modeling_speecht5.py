@@ -26,7 +26,6 @@ from torch import nn
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, L1Loss
 
 from ...activations import ACT2FN
-# from ...deepspeed import is_deepspeed_zero3_enabled
 from ...modeling_utils import PreTrainedModel
 from ...utils import add_start_docstrings, add_start_docstrings_to_model_forward, logging, replace_return_docstrings
 from .configuration_speecht5 import SpeechT5Config, SpeechT5HifiGanConfig
@@ -47,10 +46,6 @@ SPEECHT5_PRETRAINED_MODEL_ARCHIVE_LIST = [
     "microsoft/speecht5_vc",
     # See all SpeechT5 models at https://huggingface.co/models?filter=speecht5
 ]
-
-
-def is_deepspeed_zero3_enabled():
-    return True
 
 
 # Copied from transformers.models.bart.modeling_bart.shift_tokens_right
@@ -419,15 +414,15 @@ class SpeechT5PositionalConvEmbedding(nn.Module):
             groups=config.num_conv_pos_embedding_groups,
         )
 
-        if is_deepspeed_zero3_enabled():
-            import deepspeed
+#         if True:
+        import deepspeed
 
-            with deepspeed.zero.GatheredParameters(self.conv.weight, modifier_rank=0):
-                self.conv = nn.utils.weight_norm(self.conv, name="weight", dim=2)
-            deepspeed.zero.register_external_parameter(self, self.conv.weight_v)
-            deepspeed.zero.register_external_parameter(self, self.conv.weight_g)
-        else:
+        with deepspeed.zero.GatheredParameters(self.conv.weight, modifier_rank=0):
             self.conv = nn.utils.weight_norm(self.conv, name="weight", dim=2)
+        deepspeed.zero.register_external_parameter(self, self.conv.weight_v)
+        deepspeed.zero.register_external_parameter(self, self.conv.weight_g)
+#         else:
+#             self.conv = nn.utils.weight_norm(self.conv, name="weight", dim=2)
 
         self.padding = SpeechT5SamePadLayer(config.num_conv_pos_embeddings)
         self.activation = ACT2FN[config.feat_extract_activation]
@@ -1252,7 +1247,6 @@ class SpeechT5Encoder(SpeechT5PreTrainedModel):
         super().__init__(config)
         self.layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.dropout = nn.Dropout(config.hidden_dropout)
-        self.layerdrop = config.encoder_layerdrop
 
         self.layers = nn.ModuleList([SpeechT5EncoderLayer(config) for _ in range(config.encoder_layers)])
 
@@ -1299,8 +1293,6 @@ class SpeechT5Encoder(SpeechT5PreTrainedModel):
 
         position_bias = self.embed_positions(hidden_states)
 
-        deepspeed_zero3_is_enabled = is_deepspeed_zero3_enabled()
-
         # check if head_mask has a correct number of layers specified if desired
         if head_mask is not None:
             if head_mask.size()[0] != len(self.layers):
@@ -1310,22 +1302,14 @@ class SpeechT5Encoder(SpeechT5PreTrainedModel):
                 )
 
         for idx, encoder_layer in enumerate(self.layers):
-            # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
-            dropout_probability = np.random.uniform(0, 1)
-
-            skip_the_layer = self.training and (dropout_probability < self.layerdrop)
-            if not skip_the_layer or deepspeed_zero3_is_enabled:
-                # under deepspeed zero3 all gpus must run in sync
-                layer_outputs = encoder_layer(
-                    hidden_states,
-                    attention_mask=attention_mask,
-                    position_bias=position_bias,
-                    layer_head_mask=(head_mask[idx] if head_mask is not None else None),
-                )
-                hidden_states = layer_outputs[0]
-
-            if skip_the_layer:
-                layer_outputs = (None, None)
+            # under deepspeed zero3 all gpus must run in sync
+            layer_outputs = encoder_layer(
+                hidden_states,
+                attention_mask=attention_mask,
+                position_bias=position_bias,
+                layer_head_mask=(head_mask[idx] if head_mask is not None else None),
+            )
+            hidden_states = layer_outputs[0]
 
         return hidden_states
 
@@ -1374,8 +1358,6 @@ class SpeechT5Decoder(SpeechT5PreTrainedModel):
 
     def __init__(self, config: SpeechT5Config):
         super().__init__(config)
-        self.layerdrop = config.decoder_layerdrop
-
         self.layers = nn.ModuleList([SpeechT5DecoderLayer(config) for _ in range(config.decoder_layers)])
 
         self.gradient_checkpointing = False
@@ -1494,28 +1476,10 @@ class SpeechT5Decoder(SpeechT5PreTrainedModel):
             # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
             encoder_attention_mask = _expand_mask(encoder_attention_mask, hidden_states.dtype, tgt_len=tgt_len)
 
-        deepspeed_zero3_is_enabled = is_deepspeed_zero3_enabled()
-
         # decoder layers
         next_decoder_cache: List[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]] = []
 
-        # check if head_mask/cross_attn_head_mask has a correct number of layers specified if desired
-#         for attn_mask, mask_name in zip([head_mask, cross_attn_head_mask], ["head_mask", "cross_attn_head_mask"]):
-#             if attn_mask is not None:
-#                 if attn_mask.size()[0] != (len(self.layers)):
-#                     raise ValueError(
-#                         f"The `{mask_name}` should be specified for {len(self.layers)} layers, but it is for"
-#                         f" {head_mask.size()[0]}."
-#                     )
-
         for idx, decoder_layer in enumerate(self.layers):
-            # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
-            dropout_probability = random.uniform(0, 1)
-
-            skip_the_layer = self.training and (dropout_probability < self.layerdrop)
-            if skip_the_layer and not deepspeed_zero3_is_enabled:
-                continue
-
             past_key_value = past_key_values[idx] if past_key_values is not None else None
 
             layer_outputs = decoder_layer(
