@@ -1832,9 +1832,9 @@ class SpeechT5Model(SpeechT5PreTrainedModel):
     @add_start_docstrings_to_model_forward(SPEECHT5_INPUTS_DOCSTRING)
     def forward(
         self,
-        input_values: Optional[torch.Tensor] = None,
-        attention_mask: Optional[torch.LongTensor] = None,
-        decoder_input_values: Optional[torch.Tensor] = None,
+        input_values: torch.Tensor,
+        attention_mask: Optional[torch.LongTensor],
+        decoder_input_values: torch.Tensor,
         decoder_attention_mask: Optional[torch.LongTensor] = None,
         head_mask: Optional[torch.FloatTensor] = None,
         decoder_head_mask: Optional[torch.FloatTensor] = None,
