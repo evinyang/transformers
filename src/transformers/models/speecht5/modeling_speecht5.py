@@ -1989,15 +1989,15 @@ class SpeechT5ForTextToSpeech(SpeechT5PreTrainedModel):
             last_decoder_output = last_decoder_output[0, -1]
 
             # Predict the new mel spectrum for this step in the sequence.
-            spectrum = model.speech_decoder_postnet.feat_out(last_decoder_output)
-            spectrum = spectrum.view(model.config.reduction_factor, model.config.num_mel_bins)
+            spectrum = self.speech_decoder_postnet.feat_out(last_decoder_output)
+            spectrum = spectrum.view(self.config.reduction_factor, self.config.num_mel_bins)
             spectrogram.append(spectrum)
 
             # Extend the output sequence with the new mel spectrum.
-            output_sequence = torch.cat((output_sequence, spectrum[-1].view(1, 1, model.config.num_mel_bins)), dim=1)
+            output_sequence = torch.cat((output_sequence, spectrum[-1].view(1, 1, self.config.num_mel_bins)), dim=1)
 
             # Predict the probability that this is the stop token.
-            prob = torch.sigmoid(model.speech_decoder_postnet.prob_out(last_decoder_output))
+            prob = torch.sigmoid(self.speech_decoder_postnet.prob_out(last_decoder_output))
 
             # Finished when stop token or maximum length is reached.
             if idx >= minlen and int(sum(prob >= threshold)) > 0:
