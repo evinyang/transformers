@@ -1957,10 +1957,10 @@ class SpeechT5ForTextToSpeech(SpeechT5PreTrainedModel):
             - **spectrogram** (*optional*, returned when no `vocoder` is provided) `torch.FloatTensor` of shape
               `(output_sequence_length, config.num_mel_bins)` -- The predicted log-mel spectrogram.
         """
-        encoder_attention_mask = torch.ones_like(input_values)
+        encoder_attention_mask = torch.ones_like(input_ids)
 
         encoder_last_hidden_state = self.speecht5.encoder(
-            input_values=input_values,
+            input_values=input_ids,
             attention_mask=encoder_attention_mask,
         )
 
