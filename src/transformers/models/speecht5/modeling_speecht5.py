@@ -1251,7 +1251,6 @@ class SpeechT5DecoderLayer(nn.Module):
         layer_head_mask: Optional[torch.Tensor] = None,
         cross_attn_layer_head_mask: Optional[torch.Tensor] = None,
         past_key_value: Optional[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]] = None,
-        use_cache: Optional[bool] = True,
     ):
         """
         Args:
@@ -1314,11 +1313,10 @@ class SpeechT5DecoderLayer(nn.Module):
 
         outputs = (hidden_states,)
 
-        if use_cache is not None and use_cache:
-            if return_key_value is None:
-                outputs += (present_key_value,)
-            else:
-                outputs += (return_key_value,)
+        if return_key_value is None:
+            outputs += (present_key_value,)
+        else:
+            outputs += (return_key_value,)
 
         return outputs
 
@@ -1645,7 +1643,6 @@ class SpeechT5Decoder(SpeechT5PreTrainedModel):
         head_mask: Optional[torch.Tensor] = None,
         cross_attn_head_mask: Optional[torch.Tensor] = None,
         past_key_values: Optional[List[torch.FloatTensor]] = None,
-        use_cache: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, BaseModelOutputWithPastAndCrossAttentions]:
@@ -1708,7 +1705,6 @@ class SpeechT5Decoder(SpeechT5PreTrainedModel):
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
-        use_cache = use_cache if use_cache is not None else self.config.use_cache
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         input_shape = hidden_states.size()[:-1]
@@ -1726,18 +1722,11 @@ class SpeechT5Decoder(SpeechT5PreTrainedModel):
 
         deepspeed_zero3_is_enabled = is_deepspeed_zero3_enabled()
 
-        if self.gradient_checkpointing and self.training:
-            if use_cache:
-                logger.warning_once(
-                    "`use_cache=True` is incompatible with gradient checkpointing. Setting `use_cache=False`..."
-                )
-                use_cache = False
-
         # decoder layers
         all_hidden_states = () if output_hidden_states else None
         all_self_attentions = None
         all_cross_attentions = None
-        next_decoder_cache = () if use_cache else None
+        next_decoder_cache = ()
 
         # check if head_mask/cross_attn_head_mask has a correct number of layers specified if desired
         for attn_mask, mask_name in zip([head_mask, cross_attn_head_mask], ["head_mask", "cross_attn_head_mask"]):
@@ -1771,17 +1760,15 @@ class SpeechT5Decoder(SpeechT5PreTrainedModel):
                     cross_attn_head_mask[idx] if cross_attn_head_mask is not None else None
                 ),
                 past_key_value=past_key_value,
-                use_cache=use_cache,
             )
             hidden_states = layer_outputs[0]
 
-            if use_cache:
-                next_decoder_cache += (layer_outputs[1],)
+            next_decoder_cache += (layer_outputs[1],)
 
         if output_hidden_states:
             all_hidden_states = all_hidden_states + (hidden_states,)
 
-        next_cache = next_decoder_cache if use_cache else None
+        next_cache = next_decoder_cache
         if not return_dict:
             assert next_cache is not None
             assert all_hidden_states is None and all_self_attentions is None and all_cross_attentions is None
@@ -1821,7 +1808,6 @@ class SpeechT5DecoderWithSpeechPrenet(SpeechT5PreTrainedModel):
         head_mask: Optional[torch.Tensor] = None,
         cross_attn_head_mask: Optional[torch.Tensor] = None,
         past_key_values: Optional[List[torch.FloatTensor]] = None,
-        use_cache: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, BaseModelOutputWithPastAndCrossAttentions]:
@@ -1835,7 +1821,6 @@ class SpeechT5DecoderWithSpeechPrenet(SpeechT5PreTrainedModel):
             head_mask=head_mask,
             cross_attn_head_mask=cross_attn_head_mask,
             past_key_values=past_key_values,
-            use_cache=use_cache,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
@@ -1872,7 +1857,6 @@ class SpeechT5DecoderWithTextPrenet(SpeechT5PreTrainedModel):
         head_mask: Optional[torch.Tensor] = None,
         cross_attn_head_mask: Optional[torch.Tensor] = None,
         past_key_values: Optional[List[torch.FloatTensor]] = None,
-        use_cache: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, BaseModelOutputWithPastAndCrossAttentions]:
@@ -1886,7 +1870,6 @@ class SpeechT5DecoderWithTextPrenet(SpeechT5PreTrainedModel):
             head_mask=head_mask,
             cross_attn_head_mask=cross_attn_head_mask,
             past_key_values=past_key_values,
-            use_cache=use_cache,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
@@ -1917,7 +1900,6 @@ class SpeechT5DecoderWithoutPrenet(SpeechT5PreTrainedModel):
         head_mask: Optional[torch.Tensor] = None,
         cross_attn_head_mask: Optional[torch.Tensor] = None,
         past_key_values: Optional[List[torch.FloatTensor]] = None,
-        use_cache: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, BaseModelOutputWithPastAndCrossAttentions]:
@@ -1929,7 +1911,6 @@ class SpeechT5DecoderWithoutPrenet(SpeechT5PreTrainedModel):
             head_mask=head_mask,
             cross_attn_head_mask=cross_attn_head_mask,
             past_key_values=past_key_values,
-            use_cache=use_cache,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
@@ -2166,10 +2147,6 @@ SPEECHT5_INPUTS_DOCSTRING = r"""
             useful if you want more control over how to convert `decoder_input_values` indices into associated vectors
             than the model's internal embedding lookup matrix.
 
-        use_cache (`bool`, *optional*):
-            If set to `True`, `past_key_values` key value states are returned and can be used to speed up decoding (see
-            `past_key_values`).
-
         output_hidden_states (`bool`, *optional*):
             Whether or not to return the hidden states of all layers. See `hidden_states` under returned tensors for
             more detail.
@@ -2238,7 +2215,6 @@ class SpeechT5Model(SpeechT5PreTrainedModel):
         cross_attn_head_mask: Optional[torch.Tensor] = None,
         encoder_outputs: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
         past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
-        use_cache: Optional[bool] = None,
         speaker_embeddings: Optional[torch.FloatTensor] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
@@ -2261,7 +2237,6 @@ class SpeechT5Model(SpeechT5PreTrainedModel):
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
-        use_cache = use_cache if use_cache is not None else self.config.use_cache
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         # Encode if needed (training, first prediction pass)
@@ -2302,7 +2277,6 @@ class SpeechT5Model(SpeechT5PreTrainedModel):
             head_mask=decoder_head_mask,
             cross_attn_head_mask=cross_attn_head_mask,
             past_key_values=past_key_values,
-            use_cache=use_cache,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
             **decoder_args,
@@ -2392,7 +2366,6 @@ class SpeechT5ForSpeechToText(SpeechT5PreTrainedModel):
         cross_attn_head_mask: Optional[torch.Tensor] = None,
         encoder_outputs: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
         past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
-        use_cache: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         labels: Optional[torch.LongTensor] = None,
@@ -2478,7 +2451,6 @@ class SpeechT5ForSpeechToText(SpeechT5PreTrainedModel):
             cross_attn_head_mask=cross_attn_head_mask,
             encoder_outputs=encoder_outputs,
             past_key_values=past_key_values,
-            use_cache=use_cache,
             output_hidden_states=output_hidden_states,
             return_dict=True,
         )
@@ -2514,7 +2486,6 @@ class SpeechT5ForSpeechToText(SpeechT5PreTrainedModel):
         head_mask=None,
         decoder_head_mask=None,
         cross_attn_head_mask=None,
-        use_cache=None,
         encoder_outputs=None,
         **kwargs,
     ):
@@ -2530,7 +2501,6 @@ class SpeechT5ForSpeechToText(SpeechT5PreTrainedModel):
             "head_mask": head_mask,
             "decoder_head_mask": decoder_head_mask,
             "cross_attn_head_mask": cross_attn_head_mask,
-            "use_cache": use_cache,  # change this to avoid caching (presumably for debugging)
         }
 
     @staticmethod
@@ -2591,7 +2561,6 @@ def _generate_speech(
             encoder_hidden_states=encoder_last_hidden_state,
             encoder_attention_mask=encoder_attention_mask,
             past_key_values=past_key_values,
-            use_cache=True,
             return_dict=True,
         )
 
@@ -2680,7 +2649,6 @@ class SpeechT5ForTextToSpeech(SpeechT5PreTrainedModel):
         cross_attn_head_mask: Optional[torch.Tensor] = None,
         encoder_outputs: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
         past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
-        use_cache: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         speaker_embeddings: Optional[torch.FloatTensor] = None,
@@ -2753,7 +2721,6 @@ class SpeechT5ForTextToSpeech(SpeechT5PreTrainedModel):
             cross_attn_head_mask=cross_attn_head_mask,
             encoder_outputs=encoder_outputs,
             past_key_values=past_key_values,
-            use_cache=use_cache,
             speaker_embeddings=speaker_embeddings,
             output_hidden_states=output_hidden_states,
             return_dict=True,
@@ -2898,7 +2865,6 @@ class SpeechT5ForSpeechToSpeech(SpeechT5PreTrainedModel):
         cross_attn_head_mask: Optional[torch.Tensor] = None,
         encoder_outputs: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
         past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
-        use_cache: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         speaker_embeddings: Optional[torch.FloatTensor] = None,
@@ -2977,7 +2943,6 @@ class SpeechT5ForSpeechToSpeech(SpeechT5PreTrainedModel):
             cross_attn_head_mask=cross_attn_head_mask,
             encoder_outputs=encoder_outputs,
             past_key_values=past_key_values,
-            use_cache=use_cache,
             speaker_embeddings=speaker_embeddings,
             output_hidden_states=output_hidden_states,
             return_dict=True,
