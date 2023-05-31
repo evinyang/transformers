@@ -1287,6 +1287,7 @@ class SpeechT5DecoderLayer(nn.Module):
         # Cross-Attention Block
         cross_attn_present_key_value: Optional[Tuple[torch.Tensor, torch.Tensor]] = None
         cross_attn_weights: Optional[torch.Tensor] = None
+        return_key_value: Optional[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]] = None
         if encoder_hidden_states is not None:
             residual = hidden_states
 
@@ -1305,7 +1306,7 @@ class SpeechT5DecoderLayer(nn.Module):
 
             # add cross-attn to positions 3,4 of present_key_value tuple
             assert present_key_value is not None and cross_attn_present_key_value is not None
-            present_key_value = present_key_value + cross_attn_present_key_value
+            return_key_value = present_key_value + cross_attn_present_key_value
 
         # Fully Connected
         hidden_states = hidden_states + self.feed_forward(hidden_states)
@@ -1314,7 +1315,10 @@ class SpeechT5DecoderLayer(nn.Module):
         outputs = (hidden_states,)
 
         if use_cache is not None and use_cache:
-            outputs += (present_key_value,)
+            if return_key_value is None:
+                outputs += (present_key_value,)
+            else:
+                outputs += (return_key_value,)
 
         return outputs
 
