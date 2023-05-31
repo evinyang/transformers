@@ -1170,6 +1170,7 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, GenerationMixin, PushToHubMix
         torch.set_default_dtype(dtype)
         return dtype_orig
 
+    @torch.jit.unused
     @property
     def base_model(self) -> nn.Module:
         """
