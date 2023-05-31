@@ -1380,13 +1380,19 @@ class SpeechT5Decoder(SpeechT5PreTrainedModel):
         self.post_init()
 
     # Copied from transformers.models.bart.modeling_bart.BartDecoder._prepare_decoder_attention_mask
-    def _prepare_decoder_attention_mask(self, attention_mask: Optional[torch.LongTensor], input_shape, inputs_embeds, past_key_values_length):
+    def _prepare_decoder_attention_mask(
+        self,
+        attention_mask: Optional[torch.LongTensor],
+        bsz: int, tgt_len: int,
+        inputs_embeds: torch.FloatTensor,
+        past_key_values_length: int
+    ):
         # create causal mask
         # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
         combined_attention_mask: Optional[torch.Tensor] = None
-        if input_shape[-1] > 1:
+        if tgt_len > 1:
             combined_attention_mask = _make_causal_mask(
-                input_shape[0], input_shape[1],
+                bsz, tgt_len,
                 inputs_embeds.dtype,
                 device=inputs_embeds.device,
                 past_key_values_length=past_key_values_length,
@@ -1394,7 +1400,7 @@ class SpeechT5Decoder(SpeechT5PreTrainedModel):
 
         if attention_mask is not None:
             # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
-            expanded_attn_mask = _expand_mask(attention_mask, inputs_embeds.dtype, tgt_len=input_shape[-1]).to(
+            expanded_attn_mask = _expand_mask(attention_mask, inputs_embeds.dtype, tgt_len=tgt_len).to(
                 inputs_embeds.device
             )
             combined_attention_mask = (
@@ -1471,18 +1477,18 @@ class SpeechT5Decoder(SpeechT5PreTrainedModel):
                 control over how to convert `input_ids` indices into associated vectors than the model's internal
                 embedding lookup matrix.
         """
-        input_shape = hidden_states.size()[:-1]
+        bsz, tgt_len = hidden_states.size()[:-1]
 
         past_key_values_length = past_key_values[0][0].shape[2] if past_key_values is not None else 0
 
         attention_mask = self._prepare_decoder_attention_mask(
-            attention_mask, input_shape, hidden_states, past_key_values_length
+            attention_mask, bsz, tgt_len, hidden_states, past_key_values_length
         )
 
         # expand encoder attention mask
         if encoder_attention_mask is not None:
             # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
-            encoder_attention_mask = _expand_mask(encoder_attention_mask, hidden_states.dtype, tgt_len=input_shape[-1])
+            encoder_attention_mask = _expand_mask(encoder_attention_mask, hidden_states.dtype, tgt_len=tgt_len)
 
         deepspeed_zero3_is_enabled = is_deepspeed_zero3_enabled()
 
