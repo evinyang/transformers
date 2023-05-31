@@ -1073,6 +1073,7 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, GenerationMixin, PushToHubMix
     is_parallelizable = False
     supports_gradient_checkpointing = False
 
+    @torch.jit.unused
     @property
     def dummy_inputs(self) -> Dict[str, torch.Tensor]:
         """
