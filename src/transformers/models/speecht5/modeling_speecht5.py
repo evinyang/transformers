@@ -26,7 +26,7 @@ from torch import nn
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, L1Loss
 
 from ...activations import ACT2FN
-from ...deepspeed import is_deepspeed_zero3_enabled
+# from ...deepspeed import is_deepspeed_zero3_enabled
 from ...modeling_utils import PreTrainedModel
 from ...utils import add_start_docstrings, add_start_docstrings_to_model_forward, logging, replace_return_docstrings
 from .configuration_speecht5 import SpeechT5Config, SpeechT5HifiGanConfig
@@ -47,6 +47,10 @@ SPEECHT5_PRETRAINED_MODEL_ARCHIVE_LIST = [
     "microsoft/speecht5_vc",
     # See all SpeechT5 models at https://huggingface.co/models?filter=speecht5
 ]
+
+
+def is_deepspeed_zero3_enabled():
+    return True
 
 
 # Copied from transformers.models.bart.modeling_bart.shift_tokens_right
