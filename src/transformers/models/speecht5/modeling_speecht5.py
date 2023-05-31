@@ -914,7 +914,7 @@ class SpeechT5Attention(nn.Module):
         attention_mask: Optional[torch.Tensor] = None,
         layer_head_mask: Optional[torch.Tensor] = None,
         position_bias: Optional[torch.Tensor] = None,
-        output_attentions: bool = False,
+        output_attentions: Optional[bool] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor, torch.Tensor]]]:
         """Input shape: Batch x Time x Channel"""
         bsz, tgt_len, _ = hidden_states.size()
@@ -1061,7 +1061,7 @@ class SpeechT5CrossAttention(nn.Module):
         attention_mask: Optional[torch.Tensor] = None,
         layer_head_mask: Optional[torch.Tensor] = None,
         position_bias: Optional[torch.Tensor] = None,
-        output_attentions: bool = False,
+        output_attentions: Optional[bool] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor, torch.Tensor]]]:
         """Input shape: Batch x Time x Channel"""
         bsz, tgt_len, _ = hidden_states.size()
@@ -1206,7 +1206,7 @@ class SpeechT5EncoderLayer(nn.Module):
         attention_mask: Optional[torch.Tensor] = None,
         layer_head_mask: Optional[torch.Tensor] = None,
         position_bias: Optional[torch.Tensor] = None,
-        output_attentions: bool = False,
+        output_attentions: Optional[bool] = None,
     ):
         """
         Args:
