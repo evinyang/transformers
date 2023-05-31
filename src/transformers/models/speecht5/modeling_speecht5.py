@@ -1868,20 +1868,15 @@ class SpeechT5Model(SpeechT5PreTrainedModel):
 
         encoder_attention_mask = attention_mask
 
-        if isinstance(self.decoder, SpeechT5DecoderWithSpeechPrenet):
-            decoder_args = {"speaker_embeddings": speaker_embeddings}
-        else:
-            decoder_args = {}
-
         decoder_outputs = self.decoder(
             input_values=decoder_input_values,
             attention_mask=decoder_attention_mask,
             encoder_hidden_states=encoder_outputs[0],
             encoder_attention_mask=encoder_attention_mask,
+            speaker_embeddings=speaker_embeddings,
             head_mask=decoder_head_mask,
             cross_attn_head_mask=cross_attn_head_mask,
             past_key_values=past_key_values,
-            **decoder_args,
         )
         return decoder_outputs + encoder_outputs
 
