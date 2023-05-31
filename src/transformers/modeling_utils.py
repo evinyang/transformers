@@ -1643,6 +1643,7 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, GenerationMixin, PushToHubMix
         if self.supports_gradient_checkpointing:
             self.apply(partial(self._set_gradient_checkpointing, value=False))
 
+    @torch.jit.unused
     @property
     def is_gradient_checkpointing(self) -> bool:
         """
