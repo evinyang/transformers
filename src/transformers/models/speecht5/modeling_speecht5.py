@@ -1305,7 +1305,7 @@ class SpeechT5DecoderLayer(nn.Module):
 
             # add cross-attn to positions 3,4 of present_key_value tuple
             assert present_key_value is not None and cross_attn_present_key_value is not None
-            return_key_value = present_key_value + cross_attn_present_key_value
+            present_key_value = present_key_value + cross_attn_present_key_value
 
         # Fully Connected
         hidden_states = hidden_states + self.feed_forward(hidden_states)
@@ -1314,7 +1314,7 @@ class SpeechT5DecoderLayer(nn.Module):
         outputs = (hidden_states,)
 
         if use_cache is not None and use_cache:
-            outputs += (return_key_value,)
+            outputs += (present_key_value,)
 
         return outputs
 
