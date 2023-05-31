@@ -1246,7 +1246,7 @@ class SpeechT5DecoderLayer(nn.Module):
         self,
         hidden_states: torch.Tensor,
         attention_mask: Optional[torch.Tensor] = None,
-        encoder_hidden_states: Optional[torch.Tensor] = None,
+        encoder_hidden_states: torch.Tensor,
         encoder_attention_mask: Optional[torch.Tensor] = None,
         layer_head_mask: Optional[torch.Tensor] = None,
         cross_attn_layer_head_mask: Optional[torch.Tensor] = None,
@@ -1286,39 +1286,30 @@ class SpeechT5DecoderLayer(nn.Module):
         # Cross-Attention Block
         cross_attn_present_key_value: Optional[Tuple[torch.Tensor, torch.Tensor]] = None
         cross_attn_weights: Optional[torch.Tensor] = None
-        return_key_value: Optional[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]] = None
-        if encoder_hidden_states is not None:
-            residual = hidden_states
+        residual = hidden_states
 
-            # cross_attn cached key/values tuple is at positions 3,4 of past_key_value tuple
-            cross_attn_past_key_value = past_key_value[-2:] if past_key_value is not None else None
-            hidden_states, cross_attn_weights, cross_attn_present_key_value = self.encoder_attn(
-                hidden_states=hidden_states,
-                key_value_states=encoder_hidden_states,
-                attention_mask=encoder_attention_mask,
-                layer_head_mask=cross_attn_layer_head_mask,
-                past_key_value=cross_attn_past_key_value,
-            )
-            hidden_states = self.dropout(hidden_states)
-            hidden_states = residual + hidden_states
-            hidden_states = self.encoder_attn_layer_norm(hidden_states)
+        # cross_attn cached key/values tuple is at positions 3,4 of past_key_value tuple
+        cross_attn_past_key_value = past_key_value[-2:] if past_key_value is not None else None
+        hidden_states, cross_attn_weights, cross_attn_present_key_value = self.encoder_attn(
+            hidden_states=hidden_states,
+            key_value_states=encoder_hidden_states,
+            attention_mask=encoder_attention_mask,
+            layer_head_mask=cross_attn_layer_head_mask,
+            past_key_value=cross_attn_past_key_value,
+        )
+        hidden_states = self.dropout(hidden_states)
+        hidden_states = residual + hidden_states
+        hidden_states = self.encoder_attn_layer_norm(hidden_states)
 
-            # add cross-attn to positions 3,4 of present_key_value tuple
-            assert present_key_value is not None and cross_attn_present_key_value is not None
-            return_key_value = present_key_value + cross_attn_present_key_value
+        # add cross-attn to positions 3,4 of present_key_value tuple
+        assert present_key_value is not None and cross_attn_present_key_value is not None
+        return_key_value = present_key_value + cross_attn_present_key_value
 
         # Fully Connected
         hidden_states = hidden_states + self.feed_forward(hidden_states)
         hidden_states = self.final_layer_norm(hidden_states)
 
-        outputs = (hidden_states,)
-
-        if return_key_value is None:
-            outputs += (present_key_value,)
-        else:
-            outputs += (return_key_value,)
-
-        return outputs
+        return (hidden_states, return_key_value)
 
 
 class SpeechT5PreTrainedModel(PreTrainedModel):
@@ -1638,7 +1629,7 @@ class SpeechT5Decoder(SpeechT5PreTrainedModel):
         self,
         hidden_states: Optional[torch.FloatTensor] = None,
         attention_mask: Optional[torch.LongTensor] = None,
-        encoder_hidden_states: Optional[torch.FloatTensor] = None,
+        encoder_hidden_states: torch.FloatTensor,
         encoder_attention_mask: Optional[torch.LongTensor] = None,
         head_mask: Optional[torch.Tensor] = None,
         cross_attn_head_mask: Optional[torch.Tensor] = None,
@@ -1716,7 +1707,7 @@ class SpeechT5Decoder(SpeechT5PreTrainedModel):
         )
 
         # expand encoder attention mask
-        if encoder_hidden_states is not None and encoder_attention_mask is not None:
+        if encoder_attention_mask is not None:
             # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
             encoder_attention_mask = _expand_mask(encoder_attention_mask, hidden_states.dtype, tgt_len=input_shape[-1])
 
@@ -1802,7 +1793,7 @@ class SpeechT5DecoderWithSpeechPrenet(SpeechT5PreTrainedModel):
         self,
         input_values: Optional[torch.FloatTensor] = None,
         attention_mask: Optional[torch.LongTensor] = None,
-        encoder_hidden_states: Optional[torch.FloatTensor] = None,
+        encoder_hidden_states: torch.FloatTensor,
         encoder_attention_mask: Optional[torch.LongTensor] = None,
         speaker_embeddings: Optional[torch.Tensor] = None,
         head_mask: Optional[torch.Tensor] = None,
@@ -1852,7 +1843,7 @@ class SpeechT5DecoderWithTextPrenet(SpeechT5PreTrainedModel):
         self,
         input_values: Optional[torch.FloatTensor] = None,
         attention_mask: Optional[torch.LongTensor] = None,
-        encoder_hidden_states: Optional[torch.FloatTensor] = None,
+        encoder_hidden_states: torch.FloatTensor,
         encoder_attention_mask: Optional[torch.LongTensor] = None,
         head_mask: Optional[torch.Tensor] = None,
         cross_attn_head_mask: Optional[torch.Tensor] = None,
@@ -1895,7 +1886,7 @@ class SpeechT5DecoderWithoutPrenet(SpeechT5PreTrainedModel):
         self,
         input_values: Optional[torch.FloatTensor] = None,
         attention_mask: Optional[torch.LongTensor] = None,
-        encoder_hidden_states: Optional[torch.FloatTensor] = None,
+        encoder_hidden_states: torch.FloatTensor,
         encoder_attention_mask: Optional[torch.LongTensor] = None,
         head_mask: Optional[torch.Tensor] = None,
         cross_attn_head_mask: Optional[torch.Tensor] = None,
