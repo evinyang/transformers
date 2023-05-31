@@ -1511,8 +1511,7 @@ class SpeechT5Decoder(SpeechT5PreTrainedModel):
 
             next_decoder_cache.append(layer_outputs[1])
 
-        next_cache = tuple(next_decoder_cache)
-        return (hidden_states, next_cache)
+        return (hidden_states, (next_decoder_cache[0], next_decoder_cache[1], next_decoder_cache[2], next_decoder_cache[3], next_decoder_cache[4], next_decoder_cache[5]))
 
 
 class SpeechT5DecoderWithSpeechPrenet(SpeechT5PreTrainedModel):
@@ -1539,7 +1538,14 @@ class SpeechT5DecoderWithSpeechPrenet(SpeechT5PreTrainedModel):
         speaker_embeddings: Optional[torch.Tensor] = None,
         head_mask: Optional[torch.Tensor] = None,
         cross_attn_head_mask: Optional[torch.Tensor] = None,
-        past_key_values: Optional[List[torch.FloatTensor]] = None,
+        past_key_values: Optional[Tuple[
+            Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
+            Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
+            Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
+            Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
+            Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
+            Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
+        ]] = None,
     ) -> Tuple[torch.Tensor, Tuple[
         Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
         Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
