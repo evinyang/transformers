@@ -1879,16 +1879,13 @@ def _generate_speech(
     minlenratio: float = 0.0,
     maxlenratio: float = 20.0,
     vocoder: Optional[nn.Module] = None,
-    output_cross_attentions: bool = False,
 ) -> Union[torch.FloatTensor, Tuple[torch.FloatTensor, torch.FloatTensor]]:
     encoder_attention_mask = torch.ones_like(input_values)
 
-    encoder_out = model.speecht5.encoder(
+    encoder_last_hidden_state = model.speecht5.encoder(
         input_values=input_values,
         attention_mask=encoder_attention_mask,
     )
-
-    encoder_last_hidden_state = encoder_out.last_hidden_state
 
     maxlen = int(encoder_last_hidden_state.size(1) * maxlenratio / model.config.reduction_factor)
     minlen = int(encoder_last_hidden_state.size(1) * minlenratio / model.config.reduction_factor)
@@ -1897,7 +1894,6 @@ def _generate_speech(
     output_sequence = encoder_last_hidden_state.new_zeros(1, 1, model.config.num_mel_bins)
 
     spectrogram = []
-    cross_attentions = []
     past_key_values = None
     idx = 0
 
@@ -1908,7 +1904,7 @@ def _generate_speech(
         decoder_hidden_states = model.speecht5.decoder.prenet(output_sequence, speaker_embeddings)
 
         # Run the decoder layers on the last element of the prenet output.
-        decoder_out = model.speecht5.decoder.wrapped_decoder(
+        last_decoder_output, past_key_values = model.speecht5.decoder.wrapped_decoder(
             hidden_states=decoder_hidden_states[:, -1:],
             attention_mask=None,
             encoder_hidden_states=encoder_last_hidden_state,
@@ -1916,11 +1912,7 @@ def _generate_speech(
             past_key_values=past_key_values,
         )
 
-        if output_cross_attentions:
-            cross_attentions.append(torch.cat(decoder_out.cross_attentions, dim=0))
-
-        last_decoder_output = decoder_out.last_hidden_state[0, -1]
-        past_key_values = decoder_out.past_key_values
+        last_decoder_output = last_decoder_output[0, -1]
 
         # Predict the new mel spectrum for this step in the sequence.
         spectrum = model.speech_decoder_postnet.feat_out(last_decoder_output)
@@ -1944,10 +1936,6 @@ def _generate_speech(
         outputs = vocoder(spectrogram)
     else:
         outputs = spectrogram
-
-    if output_cross_attentions:
-        cross_attentions = torch.cat(cross_attentions, dim=2)
-        outputs = (outputs, cross_attentions)
 
     return outputs
 
@@ -2097,7 +2085,6 @@ class SpeechT5ForTextToSpeech(SpeechT5PreTrainedModel):
         minlenratio: float = 0.0,
         maxlenratio: float = 20.0,
         vocoder: Optional[nn.Module] = None,
-        output_cross_attentions: bool = False,
     ) -> Union[torch.FloatTensor, Tuple[torch.FloatTensor, torch.FloatTensor]]:
         r"""
         Converts a sequence of input tokens into a sequence of mel spectrograms, which are subsequently turned into a
@@ -2122,8 +2109,6 @@ class SpeechT5ForTextToSpeech(SpeechT5PreTrainedModel):
             vocoder (`nn.Module`, *optional*, defaults to `None`):
                 The vocoder that converts the mel spectrogram into a speech waveform. If `None`, the output is the mel
                 spectrogram.
-            output_cross_attentions (`bool`, *optional*, defaults to `False`):
-                Whether or not to return the attentions tensors of the decoder's cross-attention layers.
 
         Returns:
             `tuple(torch.FloatTensor)` comprising various elements depending on the inputs:
@@ -2131,9 +2116,6 @@ class SpeechT5ForTextToSpeech(SpeechT5PreTrainedModel):
               `(output_sequence_length, config.num_mel_bins)` -- The predicted log-mel spectrogram.
             - **waveform** (*optional*, returned when a `vocoder` is provided) `torch.FloatTensor` of shape
               `(num_frames,)` -- The predicted speech waveform.
-            - **cross_attentions** (*optional*, returned when `output_cross_attentions` is `True`) `torch.FloatTensor`
-              of shape `(config.decoder_layers, config.decoder_attention_heads, output_sequence_length,
-              input_sequence_length)` -- The outputs of the decoder's cross-attention layers.
         """
         return _generate_speech(
             self,
@@ -2143,7 +2125,6 @@ class SpeechT5ForTextToSpeech(SpeechT5PreTrainedModel):
             minlenratio,
             maxlenratio,
             vocoder,
-            output_cross_attentions,
         )
 
 
