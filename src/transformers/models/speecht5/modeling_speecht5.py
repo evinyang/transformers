@@ -1245,7 +1245,7 @@ class SpeechT5DecoderLayer(nn.Module):
     def forward(
         self,
         hidden_states: torch.Tensor,
-        attention_mask: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor],
         encoder_hidden_states: torch.Tensor,
         encoder_attention_mask: Optional[torch.Tensor] = None,
         layer_head_mask: Optional[torch.Tensor] = None,
@@ -1627,8 +1627,8 @@ class SpeechT5Decoder(SpeechT5PreTrainedModel):
 
     def forward(
         self,
-        hidden_states: Optional[torch.FloatTensor] = None,
-        attention_mask: Optional[torch.LongTensor] = None,
+        hidden_states: Optional[torch.FloatTensor],
+        attention_mask: Optional[torch.LongTensor],
         encoder_hidden_states: torch.FloatTensor,
         encoder_attention_mask: Optional[torch.LongTensor] = None,
         head_mask: Optional[torch.Tensor] = None,
@@ -1791,8 +1791,8 @@ class SpeechT5DecoderWithSpeechPrenet(SpeechT5PreTrainedModel):
 
     def forward(
         self,
-        input_values: Optional[torch.FloatTensor] = None,
-        attention_mask: Optional[torch.LongTensor] = None,
+        input_values: Optional[torch.FloatTensor],
+        attention_mask: Optional[torch.LongTensor],
         encoder_hidden_states: torch.FloatTensor,
         encoder_attention_mask: Optional[torch.LongTensor] = None,
         speaker_embeddings: Optional[torch.Tensor] = None,
@@ -1841,8 +1841,8 @@ class SpeechT5DecoderWithTextPrenet(SpeechT5PreTrainedModel):
 
     def forward(
         self,
-        input_values: Optional[torch.FloatTensor] = None,
-        attention_mask: Optional[torch.LongTensor] = None,
+        input_values: Optional[torch.FloatTensor],
+        attention_mask: Optional[torch.LongTensor],
         encoder_hidden_states: torch.FloatTensor,
         encoder_attention_mask: Optional[torch.LongTensor] = None,
         head_mask: Optional[torch.Tensor] = None,
@@ -1884,8 +1884,8 @@ class SpeechT5DecoderWithoutPrenet(SpeechT5PreTrainedModel):
 
     def forward(
         self,
-        input_values: Optional[torch.FloatTensor] = None,
-        attention_mask: Optional[torch.LongTensor] = None,
+        input_values: Optional[torch.FloatTensor],
+        attention_mask: Optional[torch.LongTensor],
         encoder_hidden_states: torch.FloatTensor,
         encoder_attention_mask: Optional[torch.LongTensor] = None,
         head_mask: Optional[torch.Tensor] = None,
