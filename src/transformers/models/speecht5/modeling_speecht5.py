@@ -1519,7 +1519,8 @@ class SpeechT5Encoder(SpeechT5PreTrainedModel):
             all_hidden_states = all_hidden_states + (hidden_states,)
 
         if not return_dict:
-            return tuple(v for v in [hidden_states, all_hidden_states, all_self_attentions] if v is not None)
+            assert all_hidden_states is None and all_self_attentions is None
+            return hidden_states
 
         return BaseModelOutput(
             last_hidden_state=hidden_states,
@@ -1841,11 +1842,9 @@ class SpeechT5Decoder(SpeechT5PreTrainedModel):
 
         next_cache = next_decoder_cache if use_cache else None
         if not return_dict:
-            return tuple(
-                v
-                for v in [hidden_states, next_cache, all_hidden_states, all_self_attentions, all_cross_attentions]
-                if v is not None
-            )
+            assert next_cache is not None
+            assert all_hidden_states is None and all_self_attentions is None and all_cross_attentions is None
+            return (hidden_states, next_cache)
 
         return BaseModelOutputWithPastAndCrossAttentions(
             last_hidden_state=hidden_states,
