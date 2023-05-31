@@ -1387,7 +1387,6 @@ class SpeechT5Encoder(SpeechT5PreTrainedModel):
         hidden_states: torch.FloatTensor,
         attention_mask: Optional[torch.Tensor] = None,
         head_mask: Optional[torch.Tensor] = None,
-        output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, BaseModelOutput]:
         """
@@ -1407,16 +1406,9 @@ class SpeechT5Encoder(SpeechT5PreTrainedModel):
 
                 - 1 indicates the head is **not masked**,
                 - 0 indicates the head is **masked**.
-
-            output_hidden_states (`bool`, *optional*):
-                Whether or not to return the hidden states of all layers. See `hidden_states` under returned tensors
-                for more detail.
             return_dict (`bool`, *optional*):
                 Whether or not to return a [`~utils.ModelOutput`] instead of a plain tuple.
         """
-        output_hidden_states = (
-            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
-        )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         # expand attention_mask
@@ -1431,9 +1423,6 @@ class SpeechT5Encoder(SpeechT5PreTrainedModel):
 
         deepspeed_zero3_is_enabled = is_deepspeed_zero3_enabled()
 
-        all_hidden_states = () if output_hidden_states else None
-        all_self_attentions = None
-
         # check if head_mask has a correct number of layers specified if desired
         if head_mask is not None:
             if head_mask.size()[0] != len(self.layers):
@@ -1443,9 +1432,6 @@ class SpeechT5Encoder(SpeechT5PreTrainedModel):
                 )
 
         for idx, encoder_layer in enumerate(self.layers):
-            if output_hidden_states:
-                all_hidden_states = all_hidden_states + (hidden_states,)
-
             # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
             dropout_probability = np.random.uniform(0, 1)
 
@@ -1463,17 +1449,13 @@ class SpeechT5Encoder(SpeechT5PreTrainedModel):
             if skip_the_layer:
                 layer_outputs = (None, None)
 
-        if output_hidden_states:
-            all_hidden_states = all_hidden_states + (hidden_states,)
-
         if not return_dict:
-            assert all_hidden_states is None and all_self_attentions is None
             return hidden_states
 
         return BaseModelOutput(
             last_hidden_state=hidden_states,
-            hidden_states=all_hidden_states,
-            attentions=all_self_attentions,
+            hidden_states=None,
+            attentions=None,
         )
 
 
@@ -1497,7 +1479,6 @@ class SpeechT5EncoderWithSpeechPrenet(SpeechT5PreTrainedModel):
         input_values: torch.FloatTensor,
         attention_mask: Optional[torch.Tensor] = None,
         head_mask: Optional[torch.Tensor] = None,
-        output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, BaseModelOutput]:
         hidden_states, attention_mask = self.prenet(input_values, attention_mask)
@@ -1506,7 +1487,6 @@ class SpeechT5EncoderWithSpeechPrenet(SpeechT5PreTrainedModel):
             hidden_states=hidden_states,
             attention_mask=attention_mask,
             head_mask=head_mask,
-            output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
 
@@ -1538,7 +1518,6 @@ class SpeechT5EncoderWithTextPrenet(SpeechT5PreTrainedModel):
         input_values: torch.FloatTensor,
         attention_mask: Optional[torch.Tensor] = None,
         head_mask: Optional[torch.Tensor] = None,
-        output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, BaseModelOutput]:
         hidden_states = self.prenet(input_values)
@@ -1547,7 +1526,6 @@ class SpeechT5EncoderWithTextPrenet(SpeechT5PreTrainedModel):
             hidden_states=hidden_states,
             attention_mask=attention_mask,
             head_mask=head_mask,
-            output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
 
@@ -1573,14 +1551,12 @@ class SpeechT5EncoderWithoutPrenet(SpeechT5PreTrainedModel):
         input_values: torch.FloatTensor,
         attention_mask: Optional[torch.Tensor] = None,
         head_mask: Optional[torch.Tensor] = None,
-        output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, BaseModelOutput]:
         return self.wrapped_encoder(
             hidden_states=input_values,
             attention_mask=attention_mask,
             head_mask=head_mask,
-            output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
 
@@ -1634,7 +1610,6 @@ class SpeechT5Decoder(SpeechT5PreTrainedModel):
         head_mask: Optional[torch.Tensor] = None,
         cross_attn_head_mask: Optional[torch.Tensor] = None,
         past_key_values: Optional[List[torch.FloatTensor]] = None,
-        output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, BaseModelOutputWithPastAndCrossAttentions]:
         r"""
@@ -1687,15 +1662,9 @@ class SpeechT5Decoder(SpeechT5PreTrainedModel):
                 `input_ids` you can choose to directly pass an embedded representation. This is useful if you want more
                 control over how to convert `input_ids` indices into associated vectors than the model's internal
                 embedding lookup matrix.
-            output_hidden_states (`bool`, *optional*):
-                Whether or not to return the hidden states of all layers. See `hidden_states` under returned tensors
-                for more detail.
             return_dict (`bool`, *optional*):
                 Whether or not to return a [`~utils.ModelOutput`] instead of a plain tuple.
         """
-        output_hidden_states = (
-            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
-        )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         input_shape = hidden_states.size()[:-1]
@@ -1714,9 +1683,6 @@ class SpeechT5Decoder(SpeechT5PreTrainedModel):
         deepspeed_zero3_is_enabled = is_deepspeed_zero3_enabled()
 
         # decoder layers
-        all_hidden_states = () if output_hidden_states else None
-        all_self_attentions = None
-        all_cross_attentions = None
         next_decoder_cache = ()
 
         # check if head_mask/cross_attn_head_mask has a correct number of layers specified if desired
@@ -1729,9 +1695,6 @@ class SpeechT5Decoder(SpeechT5PreTrainedModel):
                     )
 
         for idx, decoder_layer in enumerate(self.layers):
-            if output_hidden_states:
-                all_hidden_states = all_hidden_states + (hidden_states,)
-
             # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
             dropout_probability = random.uniform(0, 1)
 
@@ -1756,21 +1719,16 @@ class SpeechT5Decoder(SpeechT5PreTrainedModel):
 
             next_decoder_cache += (layer_outputs[1],)
 
-        if output_hidden_states:
-            all_hidden_states = all_hidden_states + (hidden_states,)
-
         next_cache = next_decoder_cache
         if not return_dict:
-            assert next_cache is not None
-            assert all_hidden_states is None and all_self_attentions is None and all_cross_attentions is None
             return (hidden_states, next_cache)
 
         return BaseModelOutputWithPastAndCrossAttentions(
             last_hidden_state=hidden_states,
             past_key_values=next_cache,
-            hidden_states=all_hidden_states,
-            attentions=all_self_attentions,
-            cross_attentions=all_cross_attentions,
+            hidden_states=None,
+            attentions=None,
+            cross_attentions=None,
         )
 
 
@@ -1799,7 +1757,6 @@ class SpeechT5DecoderWithSpeechPrenet(SpeechT5PreTrainedModel):
         head_mask: Optional[torch.Tensor] = None,
         cross_attn_head_mask: Optional[torch.Tensor] = None,
         past_key_values: Optional[List[torch.FloatTensor]] = None,
-        output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, BaseModelOutputWithPastAndCrossAttentions]:
         decoder_hidden_states = self.prenet(input_values, speaker_embeddings)
@@ -1812,7 +1769,6 @@ class SpeechT5DecoderWithSpeechPrenet(SpeechT5PreTrainedModel):
             head_mask=head_mask,
             cross_attn_head_mask=cross_attn_head_mask,
             past_key_values=past_key_values,
-            output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
 
@@ -1848,7 +1804,6 @@ class SpeechT5DecoderWithTextPrenet(SpeechT5PreTrainedModel):
         head_mask: Optional[torch.Tensor] = None,
         cross_attn_head_mask: Optional[torch.Tensor] = None,
         past_key_values: Optional[List[torch.FloatTensor]] = None,
-        output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, BaseModelOutputWithPastAndCrossAttentions]:
         decoder_hidden_states, attention_mask = self.prenet(input_values, attention_mask, past_key_values)
@@ -1861,7 +1816,6 @@ class SpeechT5DecoderWithTextPrenet(SpeechT5PreTrainedModel):
             head_mask=head_mask,
             cross_attn_head_mask=cross_attn_head_mask,
             past_key_values=past_key_values,
-            output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
 
@@ -1891,7 +1845,6 @@ class SpeechT5DecoderWithoutPrenet(SpeechT5PreTrainedModel):
         head_mask: Optional[torch.Tensor] = None,
         cross_attn_head_mask: Optional[torch.Tensor] = None,
         past_key_values: Optional[List[torch.FloatTensor]] = None,
-        output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, BaseModelOutputWithPastAndCrossAttentions]:
         outputs = self.wrapped_decoder(
@@ -1902,7 +1855,6 @@ class SpeechT5DecoderWithoutPrenet(SpeechT5PreTrainedModel):
             head_mask=head_mask,
             cross_attn_head_mask=cross_attn_head_mask,
             past_key_values=past_key_values,
-            output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
         return outputs
@@ -2138,10 +2090,6 @@ SPEECHT5_INPUTS_DOCSTRING = r"""
             useful if you want more control over how to convert `decoder_input_values` indices into associated vectors
             than the model's internal embedding lookup matrix.
 
-        output_hidden_states (`bool`, *optional*):
-            Whether or not to return the hidden states of all layers. See `hidden_states` under returned tensors for
-            more detail.
-
         return_dict (`bool`, *optional*):
             Whether or not to return a [`~utils.ModelOutput`] instead of a plain tuple.
 """
@@ -2207,7 +2155,6 @@ class SpeechT5Model(SpeechT5PreTrainedModel):
         encoder_outputs: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
         past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
         speaker_embeddings: Optional[torch.FloatTensor] = None,
-        output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple[torch.FloatTensor], Seq2SeqModelOutput]:
         r"""
@@ -2225,9 +2172,6 @@ class SpeechT5Model(SpeechT5PreTrainedModel):
 
         Returns:
         """
-        output_hidden_states = (
-            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
-        )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         # Encode if needed (training, first prediction pass)
@@ -2236,7 +2180,6 @@ class SpeechT5Model(SpeechT5PreTrainedModel):
                 input_values=input_values,
                 attention_mask=attention_mask,
                 head_mask=head_mask,
-                output_hidden_states=output_hidden_states,
                 return_dict=return_dict,
             )
         # If the user passed a tuple for encoder_outputs, we wrap it in a BaseModelOutput when return_dict=True
@@ -2268,7 +2211,6 @@ class SpeechT5Model(SpeechT5PreTrainedModel):
             head_mask=decoder_head_mask,
             cross_attn_head_mask=cross_attn_head_mask,
             past_key_values=past_key_values,
-            output_hidden_states=output_hidden_states,
             return_dict=return_dict,
             **decoder_args,
         )
@@ -2357,7 +2299,6 @@ class SpeechT5ForSpeechToText(SpeechT5PreTrainedModel):
         cross_attn_head_mask: Optional[torch.Tensor] = None,
         encoder_outputs: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
         past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
-        output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         labels: Optional[torch.LongTensor] = None,
     ) -> Union[Tuple, Seq2SeqLMOutput]:
@@ -2442,7 +2383,6 @@ class SpeechT5ForSpeechToText(SpeechT5PreTrainedModel):
             cross_attn_head_mask=cross_attn_head_mask,
             encoder_outputs=encoder_outputs,
             past_key_values=past_key_values,
-            output_hidden_states=output_hidden_states,
             return_dict=True,
         )
 
@@ -2640,7 +2580,6 @@ class SpeechT5ForTextToSpeech(SpeechT5PreTrainedModel):
         cross_attn_head_mask: Optional[torch.Tensor] = None,
         encoder_outputs: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
         past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
-        output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         speaker_embeddings: Optional[torch.FloatTensor] = None,
         labels: Optional[torch.FloatTensor] = None,
@@ -2713,7 +2652,6 @@ class SpeechT5ForTextToSpeech(SpeechT5PreTrainedModel):
             encoder_outputs=encoder_outputs,
             past_key_values=past_key_values,
             speaker_embeddings=speaker_embeddings,
-            output_hidden_states=output_hidden_states,
             return_dict=True,
         )
 
@@ -2856,7 +2794,6 @@ class SpeechT5ForSpeechToSpeech(SpeechT5PreTrainedModel):
         cross_attn_head_mask: Optional[torch.Tensor] = None,
         encoder_outputs: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
         past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
-        output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         speaker_embeddings: Optional[torch.FloatTensor] = None,
         labels: Optional[torch.FloatTensor] = None,
@@ -2935,7 +2872,6 @@ class SpeechT5ForSpeechToSpeech(SpeechT5PreTrainedModel):
             encoder_outputs=encoder_outputs,
             past_key_values=past_key_values,
             speaker_embeddings=speaker_embeddings,
-            output_hidden_states=output_hidden_states,
             return_dict=True,
         )
 
