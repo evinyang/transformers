@@ -48,6 +48,14 @@ SPEECHT5_PRETRAINED_MODEL_ARCHIVE_LIST = [
 ]
 
 
+SPEECH_DECODER_PRENET_DROPOUT = 0.5
+NUM_MEL_BINS = 80
+INITIALIZER_RANGE = 0.02
+REDUCTION_FACTOR = 2
+NORMALIZE_BEFORE = True
+LEAKY_RELU_SLOPE = 0.1
+
+
 # Copied from transformers.models.bart.modeling_bart.shift_tokens_right
 def shift_tokens_right(input_ids: torch.Tensor, pad_token_id: int, decoder_start_token_id: int):
     """
@@ -586,7 +594,7 @@ class SpeechT5SpeechDecoderPrenet(nn.Module):
         for layer in self.layers:
             inputs_embeds = nn.functional.relu(layer(inputs_embeds))
             inputs_embeds = nn.functional.dropout(
-                inputs_embeds, 0.5, training=True
+                inputs_embeds, SPEECH_DECODER_PRENET_DROPOUT, training=True
             )
 
         inputs_embeds = self.final_layer(inputs_embeds)
@@ -655,7 +663,7 @@ class SpeechT5SpeechDecoderPostnet(nn.Module):
         )
 
     def forward(self, hidden_states: torch.Tensor):
-        outputs_before_postnet = self.feat_out(hidden_states).view(hidden_states.size(0), -1, self.config.num_mel_bins)
+        outputs_before_postnet = self.feat_out(hidden_states).view(hidden_states.size(0), -1, NUM_MEL_BINS)
         outputs_after_postnet = self.postnet(outputs_before_postnet)
         logits = self.prob_out(hidden_states).view(hidden_states.size(0), -1)
         return outputs_before_postnet, outputs_after_postnet, logits
@@ -1224,7 +1232,7 @@ class SpeechT5PreTrainedModel(PreTrainedModel):
             nn.init.uniform_(module.projection.weight, a=-k, b=k)
             nn.init.uniform_(module.projection.bias, a=-k, b=k)
         elif isinstance(module, nn.Linear):
-            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+            module.weight.data.normal_(mean=0.0, std=INITIALIZER_RANGE)
             if module.bias is not None:
                 module.bias.data.zero_()
         elif isinstance(module, (nn.LayerNorm, nn.GroupNorm)):
@@ -1236,7 +1244,7 @@ class SpeechT5PreTrainedModel(PreTrainedModel):
                 k = math.sqrt(module.groups / (module.in_channels * module.kernel_size[0]))
                 nn.init.uniform_(module.bias, a=-k, b=k)
         elif isinstance(module, nn.Embedding):
-            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+            module.weight.data.normal_(mean=0.0, std=INITIALIZER_RANGE)
             if module.padding_idx is not None:
                 module.weight.data[module.padding_idx].zero_()
 
@@ -1960,11 +1968,11 @@ class SpeechT5ForTextToSpeech(SpeechT5PreTrainedModel):
             attention_mask=encoder_attention_mask,
         )
 
-        maxlen = int(encoder_last_hidden_state.size(1) * maxlenratio / self.config.reduction_factor)
-        minlen = int(encoder_last_hidden_state.size(1) * minlenratio / self.config.reduction_factor)
+        maxlen = int(encoder_last_hidden_state.size(1) * maxlenratio / REDUCTION_FACTOR)
+        minlen = int(encoder_last_hidden_state.size(1) * minlenratio / REDUCTION_FACTOR)
 
         # Start the output sequence with a mel spectrum that is all zeros.
-        output_sequence = encoder_last_hidden_state.new_zeros(1, 1, self.config.num_mel_bins)
+        output_sequence = encoder_last_hidden_state.new_zeros(1, 1, NUM_MEL_BINS)
 
         spectrogram = []
         past_key_values = None
@@ -1986,11 +1994,11 @@ class SpeechT5ForTextToSpeech(SpeechT5PreTrainedModel):
 
             # Predict the new mel spectrum for this step in the sequence.
             spectrum = self.speech_decoder_postnet.feat_out(last_decoder_output)
-            spectrum = spectrum.view(self.config.reduction_factor, self.config.num_mel_bins)
+            spectrum = spectrum.view(REDUCTION_FACTOR, NUM_MEL_BINS)
             spectrogram.append(spectrum)
 
             # Extend the output sequence with the new mel spectrum.
-            output_sequence = torch.cat((output_sequence, spectrum[-1].view(1, 1, self.config.num_mel_bins)), dim=1)
+            output_sequence = torch.cat((output_sequence, spectrum[-1].view(1, 1, NUM_MEL_BINS)), dim=1)
 
             # Predict the probability that this is the stop token.
             prob = torch.sigmoid(self.speech_decoder_postnet.prob_out(last_decoder_output))
@@ -2129,7 +2137,7 @@ class SpeechT5HifiGan(PreTrainedModel):
     def _init_weights(self, module):
         """Initialize the weights."""
         if isinstance(module, (nn.Linear, nn.Conv1d)):
-            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+            module.weight.data.normal_(mean=0.0, std=INITIALIZER_RANGE)
             if module.bias is not None:
                 module.bias.data.zero_()
 
@@ -2164,7 +2172,7 @@ class SpeechT5HifiGan(PreTrainedModel):
             `torch.FloatTensor`: Tensor containing the speech waveform. If the input spectrogram is batched, will be of
             shape `(batch_size, num_frames,)`. If un-batched, will be of shape `(num_frames,)`.
         """
-        if self.config.normalize_before:
+        if NORMALIZE_BEFORE:
             spectrogram = (spectrogram - self.mean) / self.scale
 
         is_batched = spectrogram.dim() == 3
@@ -2175,7 +2183,7 @@ class SpeechT5HifiGan(PreTrainedModel):
 
         hidden_states = self.conv_pre(hidden_states)
         for i in range(self.num_upsamples):
-            hidden_states = nn.functional.leaky_relu(hidden_states, self.config.leaky_relu_slope)
+            hidden_states = nn.functional.leaky_relu(hidden_states, LEAKY_RELU_SLOPE)
             hidden_states = self.upsampler[i](hidden_states)
 
             res_state = self.resblocks[i * self.num_kernels](hidden_states)
