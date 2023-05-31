@@ -150,6 +150,7 @@ except ImportError:
             return input
 
 
+@torch.jit.unused
 def get_parameter_device(parameter: Union[nn.Module, GenerationMixin, "ModuleUtilsMixin"]):
     try:
         return next(parameter.parameters()).device
