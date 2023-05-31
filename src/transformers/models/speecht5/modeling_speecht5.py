@@ -1286,7 +1286,7 @@ class SpeechT5DecoderLayer(nn.Module):
 
         # Cross-Attention Block
         cross_attn_present_key_value = None
-        cross_attn_weights = None
+        cross_attn_weights: Optional[torch.Tensor] = None
         if encoder_hidden_states is not None:
             residual = hidden_states
 
