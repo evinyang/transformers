@@ -111,7 +111,12 @@ def _make_causal_mask(
 
 
 # Copied from transformers.models.bart.modeling_bart._expand_mask
-def _expand_mask(mask: torch.Tensor, dtype: torch.dtype, tgt_len: Optional[int] = None):
+def _expand_mask(
+    mask: torch.Tensor, dtype: torch.dtype, tgt_len: Optional[int] = None,
+    min16: float = torch.finfo(torch.float16).min,
+    min32: float = torch.finfo(torch.float32).min,
+    min64: float = torch.finfo(torch.float64).min,
+):
     """
     Expands attention_mask from `[bsz, seq_len]` to `[bsz, 1, tgt_seq_len, src_seq_len]`.
     """
@@ -122,7 +127,14 @@ def _expand_mask(mask: torch.Tensor, dtype: torch.dtype, tgt_len: Optional[int] 
 
     inverted_mask = 1.0 - expanded_mask
 
-    return inverted_mask.masked_fill(inverted_mask.to(torch.bool), torch.finfo(dtype).min)
+    if dtype == torch.float16:
+        return inverted_mask.masked_fill(inverted_mask.to(torch.bool), min16)
+    elif dtype == torch.float32:
+        return inverted_mask.masked_fill(inverted_mask.to(torch.bool), min32)
+    elif dtype == torch.float64:
+        return inverted_mask.masked_fill(inverted_mask.to(torch.bool), min64)
+    else:
+        raise RuntimeError(f"Expected dtype to be floating-point, got {dtype}")
 
 
 # Copied from transformers.models.wav2vec2.modeling_wav2vec2._compute_mask_indices
