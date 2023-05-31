@@ -586,7 +586,7 @@ class SpeechT5SpeechDecoderPrenet(nn.Module):
         for layer in self.layers:
             inputs_embeds = nn.functional.relu(layer(inputs_embeds))
             inputs_embeds = nn.functional.dropout(
-                inputs_embeds, self.config.speech_decoder_prenet_dropout, training=True
+                inputs_embeds, 0.5, training=True
             )
 
         inputs_embeds = self.final_layer(inputs_embeds)
