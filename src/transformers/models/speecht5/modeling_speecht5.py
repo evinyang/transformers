@@ -1829,6 +1829,7 @@ class SpeechT5Model(SpeechT5PreTrainedModel):
     def get_decoder(self):
         return self.decoder
 
+    @torch.jit.unused
     @add_start_docstrings_to_model_forward(SPEECHT5_INPUTS_DOCSTRING)
     def forward(
         self,
