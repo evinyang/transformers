@@ -1531,7 +1531,7 @@ class SpeechT5DecoderWithSpeechPrenet(SpeechT5PreTrainedModel):
 
     def forward(
         self,
-        input_values: Optional[torch.FloatTensor],
+        input_values: torch.FloatTensor,
         attention_mask: Optional[torch.LongTensor],
         encoder_hidden_states: torch.FloatTensor,
         encoder_attention_mask: Optional[torch.LongTensor] = None,
