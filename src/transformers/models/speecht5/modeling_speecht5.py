@@ -1477,7 +1477,7 @@ class SpeechT5Decoder(SpeechT5PreTrainedModel):
                 control over how to convert `input_ids` indices into associated vectors than the model's internal
                 embedding lookup matrix.
         """
-        bsz, tgt_len = hidden_states.size()[:-1]
+        bsz, tgt_len, _ = hidden_states.size()
 
         past_key_values_length = past_key_values[0][0].shape[2] if past_key_values is not None else 0
 
