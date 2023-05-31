@@ -1500,13 +1500,13 @@ class SpeechT5Decoder(SpeechT5PreTrainedModel):
         next_decoder_cache: List[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]] = []
 
         # check if head_mask/cross_attn_head_mask has a correct number of layers specified if desired
-        for attn_mask, mask_name in zip([head_mask, cross_attn_head_mask], ["head_mask", "cross_attn_head_mask"]):
-            if attn_mask is not None:
-                if attn_mask.size()[0] != (len(self.layers)):
-                    raise ValueError(
-                        f"The `{mask_name}` should be specified for {len(self.layers)} layers, but it is for"
-                        f" {head_mask.size()[0]}."
-                    )
+#         for attn_mask, mask_name in zip([head_mask, cross_attn_head_mask], ["head_mask", "cross_attn_head_mask"]):
+#             if attn_mask is not None:
+#                 if attn_mask.size()[0] != (len(self.layers)):
+#                     raise ValueError(
+#                         f"The `{mask_name}` should be specified for {len(self.layers)} layers, but it is for"
+#                         f" {head_mask.size()[0]}."
+#                     )
 
         for idx, decoder_layer in enumerate(self.layers):
             # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
