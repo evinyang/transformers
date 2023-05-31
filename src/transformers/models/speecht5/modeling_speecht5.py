@@ -1290,7 +1290,7 @@ class SpeechT5DecoderLayer(nn.Module):
         if encoder_hidden_states is not None:
             residual = hidden_states
 
-            # cross_attn cached key/values tuple is at positions 3,4 of present_key_value tuple
+            # cross_attn cached key/values tuple is at positions 3,4 of past_key_value tuple
             cross_attn_past_key_value = past_key_value[-2:] if past_key_value is not None else None
             hidden_states, cross_attn_weights, cross_attn_present_key_value = self.encoder_attn(
                 hidden_states=hidden_states,
@@ -1304,7 +1304,7 @@ class SpeechT5DecoderLayer(nn.Module):
             hidden_states = self.encoder_attn_layer_norm(hidden_states)
 
             # add cross-attn to positions 3,4 of present_key_value tuple
-            present_key_value = present_key_value + cross_attn_present_key_value
+            return_key_value: Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor] = present_key_value + cross_attn_present_key_value
 
         # Fully Connected
         hidden_states = hidden_states + self.feed_forward(hidden_states)
@@ -1313,7 +1313,7 @@ class SpeechT5DecoderLayer(nn.Module):
         outputs = (hidden_states,)
 
         if use_cache:
-            outputs += (present_key_value,)
+            outputs += (return_key_value,)
 
         return outputs
 
