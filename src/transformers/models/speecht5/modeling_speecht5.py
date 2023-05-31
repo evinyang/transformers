@@ -1683,7 +1683,7 @@ class SpeechT5Decoder(SpeechT5PreTrainedModel):
         deepspeed_zero3_is_enabled = is_deepspeed_zero3_enabled()
 
         # decoder layers
-        next_decoder_cache = ()
+        next_decoder_cache: List[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]] = []
 
         # check if head_mask/cross_attn_head_mask has a correct number of layers specified if desired
         for attn_mask, mask_name in zip([head_mask, cross_attn_head_mask], ["head_mask", "cross_attn_head_mask"]):
@@ -1717,9 +1717,9 @@ class SpeechT5Decoder(SpeechT5PreTrainedModel):
             )
             hidden_states = layer_outputs[0]
 
-            next_decoder_cache += (layer_outputs[1],)
+            next_decoder_cache.append(layer_outputs[1])
 
-        next_cache = next_decoder_cache
+        next_cache = tuple(next_decoder_cache)
         if not return_dict:
             return (hidden_states, next_cache)
 
