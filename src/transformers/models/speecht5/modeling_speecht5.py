@@ -1967,7 +1967,14 @@ class SpeechT5ForTextToSpeech(SpeechT5PreTrainedModel):
         output_sequence = encoder_last_hidden_state.new_zeros(1, 1, 80) # num_mel_bins
 
         spectrogram = []
-        past_key_values = None
+        past_key_values: Optional[Tuple[
+            Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
+            Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
+            Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
+            Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
+            Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor],
+            Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
+        ]] = None
 
         for idx in range(maxlen + 1):
             # Run the decoder prenet on the entire output sequence.
