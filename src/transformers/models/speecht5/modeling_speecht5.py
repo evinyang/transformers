@@ -1967,10 +1967,9 @@ class SpeechT5HifiGan(PreTrainedModel):
             padding=3,
         )
 
-        self.upsampler_resblocks = nn.ModuleList()
+        self.upsampler = nn.ModuleList()
         for i, (upsample_rate, kernel_size) in enumerate(zip(config.upsample_rates, config.upsample_kernel_sizes)):
-            ml = nn.ModuleList()
-            ml.append(
+            self.upsampler.append(
                 nn.ConvTranspose1d(
                     config.upsample_initial_channel // (2**i),
                     config.upsample_initial_channel // (2 ** (i + 1)),
@@ -1979,10 +1978,12 @@ class SpeechT5HifiGan(PreTrainedModel):
                     padding=(kernel_size - upsample_rate) // 2,
                 )
             )
+
+        self.resblocks = nn.ModuleList()
+        for i in range(len(self.upsampler)):
             channels = config.upsample_initial_channel // (2 ** (i + 1))
             for kernel_size, dilation in zip(config.resblock_kernel_sizes, config.resblock_dilation_sizes):
-                ml.append(HifiGanResidualBlock(channels, kernel_size, dilation, config.leaky_relu_slope))
-            self.upsampler_resblocks.append(ml)
+                self.resblocks.append(HifiGanResidualBlock(channels, kernel_size, dilation, config.leaky_relu_slope))
 
         self.conv_post = nn.Conv1d(channels, 1, kernel_size=7, stride=1, padding=3)
 
