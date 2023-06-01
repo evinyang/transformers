@@ -245,17 +245,17 @@ def _compute_mask_indices(
 class SpeechT5NoLayerNormConvLayer(nn.Module):
     def __init__(self, config, layer_id=0):
         super().__init__()
-        self.in_conv_dim = 512 if layer_id > 0 else 1 # conv_dim
-        self.out_conv_dim = 512 # conv_dim
+        self.in_conv_dim = config.conv_dim[layer_id - 1] if layer_id > 0 else 1
+        self.out_conv_dim = config.conv_dim[layer_id]
 
         self.conv = nn.Conv1d(
             self.in_conv_dim,
             self.out_conv_dim,
-            kernel_size=[10, 3, 3, 3, 3, 2, 2][layer_id], # conv_kernel
-            stride=[5, 2, 2, 2, 2, 2, 2][layer_id], # conv_stride
-            bias=False, # conv_bias
+            kernel_size=config.conv_kernel[layer_id],
+            stride=config.conv_stride[layer_id],
+            bias=config.conv_bias,
         )
-        self.activation = ACT2FN['gelu'] # feat_extract_activation
+        self.activation = ACT2FN[config.feat_extract_activation]
 
     def forward(self, hidden_states):
         hidden_states = self.conv(hidden_states)
@@ -267,18 +267,18 @@ class SpeechT5NoLayerNormConvLayer(nn.Module):
 class SpeechT5LayerNormConvLayer(nn.Module):
     def __init__(self, config, layer_id=0):
         super().__init__()
-        self.in_conv_dim = 512 if layer_id > 0 else 1 # conv_dim
-        self.out_conv_dim = 512 # conv_dim
+        self.in_conv_dim = config.conv_dim[layer_id - 1] if layer_id > 0 else 1
+        self.out_conv_dim = config.conv_dim[layer_id]
 
         self.conv = nn.Conv1d(
             self.in_conv_dim,
             self.out_conv_dim,
-            kernel_size=[10, 3, 3, 3, 3, 2, 2][layer_id], # conv_kernel
-            stride=[5, 2, 2, 2, 2, 2, 2][layer_id], # conv_stride
-            bias=False, # conv_bias
+            kernel_size=config.conv_kernel[layer_id],
+            stride=config.conv_stride[layer_id],
+            bias=config.conv_bias,
         )
         self.layer_norm = nn.LayerNorm(self.out_conv_dim, elementwise_affine=True)
-        self.activation = ACT2FN['gelu'] # feat_extract_activation
+        self.activation = ACT2FN[config.feat_extract_activation]
 
     def forward(self, hidden_states):
         hidden_states = self.conv(hidden_states)
@@ -295,17 +295,17 @@ class SpeechT5LayerNormConvLayer(nn.Module):
 class SpeechT5GroupNormConvLayer(nn.Module):
     def __init__(self, config, layer_id=0):
         super().__init__()
-        self.in_conv_dim = 512 if layer_id > 0 else 1 # conv_dim
-        self.out_conv_dim = 512 # conv_dim
+        self.in_conv_dim = config.conv_dim[layer_id - 1] if layer_id > 0 else 1
+        self.out_conv_dim = config.conv_dim[layer_id]
 
         self.conv = nn.Conv1d(
             self.in_conv_dim,
             self.out_conv_dim,
-            kernel_size=[10, 3, 3, 3, 3, 2, 2][layer_id], # conv_kernel
-            stride=[5, 2, 2, 2, 2, 2, 2][layer_id], # conv_stride
-            bias=False, # conv_bias
+            kernel_size=config.conv_kernel[layer_id],
+            stride=config.conv_stride[layer_id],
+            bias=config.conv_bias,
         )
-        self.activation = ACT2FN['gelu'] # feat_extract_activation
+        self.activation = ACT2FN[config.feat_extract_activation]
 
         self.layer_norm = nn.GroupNorm(num_groups=self.out_conv_dim, num_channels=self.out_conv_dim, affine=True)
 
@@ -392,11 +392,11 @@ class SpeechT5PositionalConvEmbedding(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.conv = nn.Conv1d(
-            768, # hidden_size
-            768, # hidden_size
-            kernel_size=128, # num_conv_pos_embeddings
-            padding=64, # num_conv_pos_embeddings // 2
-            groups=16, # num_conv_pos_embedding_groups
+            config.hidden_size,
+            config.hidden_size,
+            kernel_size=config.num_conv_pos_embeddings,
+            padding=config.num_conv_pos_embeddings // 2,
+            groups=config.num_conv_pos_embedding_groups,
         )
 
 #         if True:
@@ -409,8 +409,8 @@ class SpeechT5PositionalConvEmbedding(nn.Module):
 #         else:
 #             self.conv = nn.utils.weight_norm(self.conv, name="weight", dim=2)
 
-        self.padding = SpeechT5SamePadLayer(128) # num_conv_pos_embeddings
-        self.activation = ACT2FN['gelu'] # feat_extract_activation
+        self.padding = SpeechT5SamePadLayer(config.num_conv_pos_embeddings)
+        self.activation = ACT2FN[config.feat_extract_activation]
 
     def forward(self, hidden_states):
         hidden_states = hidden_states.transpose(1, 2)
@@ -485,13 +485,13 @@ class SpeechT5FeatureEncoder(nn.Module):
     def __init__(self, config):
         super().__init__()
 
-        if True: # feat_extract_norm == "group"
+        if config.feat_extract_norm == "group":
             conv_layers = [SpeechT5GroupNormConvLayer(config, layer_id=0)] + [
-                SpeechT5NoLayerNormConvLayer(config, layer_id=i + 1) for i in range(6) # num_feat_extract_layers - 1
+                SpeechT5NoLayerNormConvLayer(config, layer_id=i + 1) for i in range(config.num_feat_extract_layers - 1)
             ]
         else:
             conv_layers = [
-                SpeechT5LayerNormConvLayer(config, layer_id=i) for i in range(7) # num_feat_extract_layers
+                SpeechT5LayerNormConvLayer(config, layer_id=i) for i in range(config.num_feat_extract_layers)
             ]
         self.conv_layers = nn.ModuleList(conv_layers)
         self.gradient_checkpointing = False
@@ -519,9 +519,9 @@ class SpeechT5FeatureEncoder(nn.Module):
 class SpeechT5FeatureProjection(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.layer_norm = nn.LayerNorm(512, eps=1e-05) # conv_dim, layer_norm_eps
-        self.projection = nn.Linear(512, 768) # conv_dim, hidden_size
-        self.dropout = nn.Dropout(0.0) # feat_proj_dropout
+        self.layer_norm = nn.LayerNorm(config.conv_dim[-1], eps=config.layer_norm_eps)
+        self.projection = nn.Linear(config.conv_dim[-1], config.hidden_size)
+        self.dropout = nn.Dropout(config.feat_proj_dropout)
 
     def forward(self, hidden_states):
         # non-projected hidden states are needed for quantization
@@ -539,22 +539,22 @@ class SpeechT5SpeechDecoderPrenet(nn.Module):
         self.layers = nn.ModuleList(
             [
                 nn.Linear(
-                    80 if i == 0 else 256, # num_mel_bins, speech_decoder_prenet_units
-                    256, # speech_decoder_prenet_units
+                    config.num_mel_bins if i == 0 else config.speech_decoder_prenet_units,
+                    config.speech_decoder_prenet_units,
                 )
-                for i in range(2) # speech_decoder_prenet_layers
+                for i in range(config.speech_decoder_prenet_layers)
             ]
         )
 
-        self.final_layer = nn.Linear(256, 768) # speech_decoder_prenet_units, hidden_size
+        self.final_layer = nn.Linear(config.speech_decoder_prenet_units, config.hidden_size)
 
         self.encode_positions = SpeechT5ScaledPositionalEncoding(
-            0.1, # positional_dropout
-            768, # hidden_size
-            1876, # 1876
+            config.positional_dropout,
+            config.hidden_size,
+            config.max_speech_positions,
         )
 
-        self.speaker_embeds_layer = nn.Linear(1280, 768) # speaker_embedding_dim + hidden_size, hidden_size
+        self.speaker_embeds_layer = nn.Linear(config.speaker_embedding_dim + config.hidden_size, config.hidden_size)
 
     def forward(
         self,
@@ -588,31 +588,31 @@ class SpeechT5BatchNormConvLayer(nn.Module):
         super().__init__()
 
         if layer_id == 0:
-            in_conv_dim = 80 # num_mel_bins
+            in_conv_dim = config.num_mel_bins
         else:
-            in_conv_dim = 256 # speech_decoder_postnet_units
+            in_conv_dim = config.speech_decoder_postnet_units
 
-        if layer_id == 4: # speech_decoder_postnet_layers - 1
-            out_conv_dim = 80 # num_mel_bins
+        if layer_id == config.speech_decoder_postnet_layers - 1:
+            out_conv_dim = config.num_mel_bins
         else:
-            out_conv_dim = 256 # speech_decoder_postnet_units
+            out_conv_dim = config.speech_decoder_postnet_units
 
         self.conv = nn.Conv1d(
             in_conv_dim,
             out_conv_dim,
-            kernel_size=5, # speech_decoder_postnet_kernel,
+            kernel_size=config.speech_decoder_postnet_kernel,
             stride=1,
-            padding=2, # (speech_decoder_postnet_kernel - 1) // 2
+            padding=(config.speech_decoder_postnet_kernel - 1) // 2,
             bias=False,
         )
         self.batch_norm = nn.BatchNorm1d(out_conv_dim)
 
-        if layer_id < 4: # speech_decoder_postnet_layers - 1
+        if layer_id < config.speech_decoder_postnet_layers - 1:
             self.activation = nn.Tanh()
         else:
             self.activation = None
 
-        self.dropout = nn.Dropout(0.5) # speech_decoder_postnet_dropout
+        self.dropout = nn.Dropout(config.speech_decoder_postnet_dropout)
 
     def forward(self, hidden_states):
         hidden_states = self.conv(hidden_states)
@@ -628,11 +628,11 @@ class SpeechT5SpeechDecoderPostnet(nn.Module):
         super().__init__()
         self.config = config
 
-        self.feat_out = nn.Linear(768, 160) # hidden_size, num_mel_bins * reduction_factor
-        self.prob_out = nn.Linear(768, 2) # hidden_size, reduction_factor
+        self.feat_out = nn.Linear(config.hidden_size, config.num_mel_bins * config.reduction_factor)
+        self.prob_out = nn.Linear(config.hidden_size, config.reduction_factor)
 
         self.layers = nn.ModuleList(
-            [SpeechT5BatchNormConvLayer(config, i) for i in range(5)] # speech_decoder_postnet_layers
+            [SpeechT5BatchNormConvLayer(config, i) for i in range(config.speech_decoder_postnet_layers)]
         )
 
     def forward(self, hidden_states: torch.Tensor):
@@ -652,11 +652,11 @@ class SpeechT5TextEncoderPrenet(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
-        self.embed_tokens = nn.Embedding(81, 768, 1) # vocab_size, hidden_size, pad_token_id
+        self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size, config.pad_token_id)
         self.encode_positions = SpeechT5ScaledPositionalEncoding(
-            0.1, # positional_dropout
-            768, # hidden_size
-            600, # max_text_positions
+            config.positional_dropout,
+            config.hidden_size,
+            config.max_text_positions,
         )
 
     def get_input_embeddings(self):
@@ -675,15 +675,15 @@ class SpeechT5TextDecoderPrenet(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
-        self.dropout = nn.Dropout(0.1) # positional_dropout
-        self.embed_scale = 1.0 # sqrt(hidden_size) if scale_embedding
+        self.dropout = nn.Dropout(config.positional_dropout)
+        self.embed_scale = math.sqrt(config.hidden_size) if config.scale_embedding else 1.0
 
-        self.embed_tokens = nn.Embedding(81, 768, 1) # vocab_size, hidden_size, pad_token_id
+        self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size, config.pad_token_id)
 
         self.embed_positions = SpeechT5SinusoidalPositionalEmbedding(
-            602, # max_text_positions + pad_token_id + 1
-            768, # hidden_size
-            1, # pad_token_id
+            config.max_text_positions + config.pad_token_id + 1,
+            config.hidden_size,
+            config.pad_token_id,
         )
 
     def get_input_embeddings(self):
@@ -722,7 +722,7 @@ class SpeechT5TextDecoderPostnet(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
-        self.lm_head = nn.Linear(768, 81, bias=False) # hidden_size, vocab_size
+        self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
 
     def forward(self, hidden_states: torch.Tensor):
         return self.lm_head(hidden_states)
@@ -958,13 +958,16 @@ class SpeechT5CrossAttention(nn.Module):
 class SpeechT5FeedForward(nn.Module):
     def __init__(self, config, intermediate_size):
         super().__init__()
-        self.intermediate_dropout = nn.Dropout(0.1) # activation_dropout
+        self.intermediate_dropout = nn.Dropout(config.activation_dropout)
 
-        self.intermediate_dense = nn.Linear(768, intermediate_size) # hidden_size
-        self.intermediate_act_fn = ACT2FN['gelu'] # hidden_act
+        self.intermediate_dense = nn.Linear(config.hidden_size, intermediate_size)
+        if isinstance(config.hidden_act, str):
+            self.intermediate_act_fn = ACT2FN[config.hidden_act]
+        else:
+            self.intermediate_act_fn = config.hidden_act
 
-        self.output_dense = nn.Linear(intermediate_size, 768) # hidden_size
-        self.output_dropout = nn.Dropout(0.1) # hidden_dropout
+        self.output_dense = nn.Linear(intermediate_size, config.hidden_size)
+        self.output_dropout = nn.Dropout(config.hidden_dropout)
 
     def forward(self, hidden_states):
         hidden_states = self.intermediate_dense(hidden_states)
@@ -980,15 +983,15 @@ class SpeechT5EncoderLayer(nn.Module):
     def __init__(self, config: SpeechT5Config):
         super().__init__()
         self.attention = SpeechT5Attention(
-            embed_dim=768, # hidden_size
-            num_heads=12, # encoder_attention_heads
-            dropout=0.1, # attention_dropout
+            embed_dim=config.hidden_size,
+            num_heads=config.encoder_attention_heads,
+            dropout=config.attention_dropout,
             is_decoder=False,
         )
-        self.dropout = nn.Dropout(0.1) # hidden_dropout
-        self.layer_norm = nn.LayerNorm(768, eps=1e-05) # hidden_size, layer_norm_eps
-        self.feed_forward = SpeechT5FeedForward(config, 3072)# encoder_ffn_dim
-        self.final_layer_norm = nn.LayerNorm(768, eps=1e-05) # hidden_size, layer_norm_eps
+        self.dropout = nn.Dropout(config.hidden_dropout)
+        self.layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        self.feed_forward = SpeechT5FeedForward(config, config.encoder_ffn_dim)
+        self.final_layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
 
     def forward(
         self,
@@ -1031,24 +1034,24 @@ class SpeechT5DecoderLayer(nn.Module):
     def __init__(self, config: SpeechT5Config):
         super().__init__()
         self.self_attn = SpeechT5Attention(
-            embed_dim=768, # hidden_size
-            num_heads=12, # decoder_attention_heads
-            dropout=0.1, # attention_dropout
+            embed_dim=config.hidden_size,
+            num_heads=config.decoder_attention_heads,
+            dropout=config.attention_dropout,
             is_decoder=True,
         )
-        self.dropout = nn.Dropout(0.1) # hidden_dropout
-        self.self_attn_layer_norm = nn.LayerNorm(768, eps=1e-05) # hidden_size, layer_norm_eps
+        self.dropout = nn.Dropout(config.hidden_dropout)
+        self.self_attn_layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
 
         self.encoder_attn = SpeechT5CrossAttention(
-            768, # hidden_size
-            12, # decoder_attention_heads
-            dropout=0.1, # attention_dropout
+            config.hidden_size,
+            config.decoder_attention_heads,
+            dropout=config.attention_dropout,
             is_decoder=True,
         )
-        self.encoder_attn_layer_norm = nn.LayerNorm(768, eps=1e-05) # hidden_size, layer_norm_eps
+        self.encoder_attn_layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
 
-        self.feed_forward = SpeechT5FeedForward(config, 3072) # decoder_ffn_dim
-        self.final_layer_norm = nn.LayerNorm(768, eps=1e-05) # hidden_size, layer_norm_eps
+        self.feed_forward = SpeechT5FeedForward(config, config.decoder_ffn_dim)
+        self.final_layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
 
     def forward(
         self,
@@ -1175,13 +1178,13 @@ class SpeechT5Encoder(SpeechT5PreTrainedModel):
 
     def __init__(self, config: SpeechT5Config):
         super().__init__(config)
-        self.layer_norm = nn.LayerNorm(768, eps=1e-05) # hidden_size, layer_norm_eps
-        self.dropout = nn.Dropout(0.1) # hidden_dropout
+        self.layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        self.dropout = nn.Dropout(config.hidden_dropout)
 
-        self.layers = nn.ModuleList([SpeechT5EncoderLayer(config) for _ in range(12)]) # encoder_layers
+        self.layers = nn.ModuleList([SpeechT5EncoderLayer(config) for _ in range(config.encoder_layers)])
 
         self.embed_positions = SpeechT5RelativePositionalEncoding(
-            64, 160 # hidden_size // encoder_attention_heads, encoder_max_relative_position
+            config.hidden_size // config.encoder_attention_heads, config.encoder_max_relative_position
         )
 
         self.gradient_checkpointing = False
@@ -1280,7 +1283,7 @@ class SpeechT5Decoder(SpeechT5PreTrainedModel):
 
     def __init__(self, config: SpeechT5Config):
         super().__init__(config)
-        self.layers = nn.ModuleList([SpeechT5DecoderLayer(config) for _ in range(6)]) # decoder_layers
+        self.layers = nn.ModuleList([SpeechT5DecoderLayer(config) for _ in range(config.decoder_layers)])
 
         self.gradient_checkpointing = False
 
@@ -1492,8 +1495,8 @@ class SpeechT5GuidedMultiheadAttentionLoss(nn.Module):
 
     def __init__(self, config: SpeechT5Config):
         super().__init__()
-        self.sigma = 0.4 # guided_attention_loss_sigma
-        self.scale = 10.0 # guided_attention_loss_scale
+        self.sigma = config.guided_attention_loss_sigma
+        self.scale = config.guided_attention_loss_scale
 
     def forward(
         self, attentions: torch.FloatTensor, input_masks: torch.BoolTensor, output_masks: torch.BoolTensor
@@ -1550,9 +1553,9 @@ class SpeechT5SpectrogramLoss(nn.Module):
 
     def __init__(self, config: SpeechT5Config):
         super().__init__()
-        self.use_guided_attention_loss = True # use_guided_attention_loss
-        self.guided_attention_loss_num_heads = 2 # guided_attention_loss_num_heads
-        self.reduction_factor = 2 # reduction_factor
+        self.use_guided_attention_loss = config.use_guided_attention_loss
+        self.guided_attention_loss_num_heads = config.guided_attention_loss_num_heads
+        self.reduction_factor = config.reduction_factor
 
         self.l1_criterion = L1Loss()
         self.bce_criterion = BCEWithLogitsLoss(pos_weight=torch.tensor(5.0))
@@ -1954,22 +1957,22 @@ class SpeechT5HifiGan(PreTrainedModel):
 
     def __init__(self, config: SpeechT5HifiGanConfig):
         super().__init__(config)
-        self.num_kernels = 3 # len(resblock_kernel_sizes)
-        self.num_upsamples = 4 # len(upsample_rates)
+        self.num_kernels = len(config.resblock_kernel_sizes)
+        self.num_upsamples = len(config.upsample_rates)
         self.conv_pre = nn.Conv1d(
-            80, # model_in_dim
-            512, # upsample_initial_channel
+            config.model_in_dim,
+            config.upsample_initial_channel,
             kernel_size=7,
             stride=1,
             padding=3,
         )
 
         self.upsampler = nn.ModuleList()
-        for i, (upsample_rate, kernel_size) in enumerate(zip([4, 4, 4, 4], [8, 8, 8, 8])): # upsample_rates, upsample_kernel_sizes
+        for i, (upsample_rate, kernel_size) in enumerate(zip(config.upsample_rates, config.upsample_kernel_sizes)):
             self.upsampler.append(
                 nn.ConvTranspose1d(
-                    512 // (2**i), # upsample_initial_channel
-                    512 // (2 ** (i + 1)), # upsample_initial_channel
+                    config.upsample_initial_channel // (2**i),
+                    config.upsample_initial_channel // (2 ** (i + 1)),
                     kernel_size=kernel_size,
                     stride=upsample_rate,
                     padding=(kernel_size - upsample_rate) // 2,
@@ -1978,14 +1981,14 @@ class SpeechT5HifiGan(PreTrainedModel):
 
         self.resblocks = nn.ModuleList()
         for i in range(len(self.upsampler)):
-            channels = 512 // (2 ** (i + 1)) # upsample_initial_channel
-            for kernel_size, dilation in zip([3, 7, 11], [[1, 3, 5], [1, 3, 5], [1, 3, 5]]): # resblock_kernel_sizes, resblock_dilation_sizes
-                self.resblocks.append(HifiGanResidualBlock(channels, kernel_size, dilation, 0.1)) # leaky_relu_slope
+            channels = config.upsample_initial_channel // (2 ** (i + 1))
+            for kernel_size, dilation in zip(config.resblock_kernel_sizes, config.resblock_dilation_sizes):
+                self.resblocks.append(HifiGanResidualBlock(channels, kernel_size, dilation, config.leaky_relu_slope))
 
         self.conv_post = nn.Conv1d(channels, 1, kernel_size=7, stride=1, padding=3)
 
-        self.register_buffer("mean", torch.zeros(80)) # model_in_dim
-        self.register_buffer("scale", torch.ones(80)) # model_in_dim
+        self.register_buffer("mean", torch.zeros(config.model_in_dim))
+        self.register_buffer("scale", torch.ones(config.model_in_dim))
 
         # Initialize weights and apply final processing
         self.post_init()
