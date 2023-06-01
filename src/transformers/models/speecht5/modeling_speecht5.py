@@ -2041,16 +2041,12 @@ class SpeechT5HifiGan(PreTrainedModel):
         hidden_states = spectrogram.transpose(2, 1)
 
         hidden_states = self.conv_pre(hidden_states)
-        for i, ml in enumerate(self.upsampler_resblocks):
+        for i, upsampler in enumerate(self.upsampler):
             hidden_states = nn.functional.leaky_relu(hidden_states, 0.1) # leaky_relu_slope
-            res_state = None
-            for j, block in enumerate(ml):
-                if j == 0:
-                    hidden_states = block(hidden_states)
-                elif j == 1:
-                    res_state = block(hidden_states)
-                else:
-                    res_state += block(hidden_states)
+            hidden_states = upsampler(hidden_states)
+            res_state = self.resblocks[i * self.num_kernels](hidden_states)
+            for j in range(1, self.num_kernels):
+                res_state += self.resblocks[i * self.num_kernels + j](hidden_states)
             hidden_states = res_state / self.num_kernels
 
         hidden_states = nn.functional.leaky_relu(hidden_states)
