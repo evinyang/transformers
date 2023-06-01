@@ -1967,9 +1967,10 @@ class SpeechT5HifiGan(PreTrainedModel):
             padding=3,
         )
 
-        self.upsampler = nn.ModuleList()
+        self.upsampler_resblocks = nn.ModuleList()
         for i, (upsample_rate, kernel_size) in enumerate(zip(config.upsample_rates, config.upsample_kernel_sizes)):
-            self.upsampler.append(
+            ml = nn.ModuleList()
+            ml.append(
                 nn.ConvTranspose1d(
                     config.upsample_initial_channel // (2**i),
                     config.upsample_initial_channel // (2 ** (i + 1)),
@@ -1978,12 +1979,10 @@ class SpeechT5HifiGan(PreTrainedModel):
                     padding=(kernel_size - upsample_rate) // 2,
                 )
             )
-
-        self.resblocks = nn.ModuleList()
-        for i in range(len(self.upsampler)):
             channels = config.upsample_initial_channel // (2 ** (i + 1))
             for kernel_size, dilation in zip(config.resblock_kernel_sizes, config.resblock_dilation_sizes):
-                self.resblocks.append(HifiGanResidualBlock(channels, kernel_size, dilation, config.leaky_relu_slope))
+                ml.append(HifiGanResidualBlock(channels, kernel_size, dilation, config.leaky_relu_slope))
+            self.upsampler_resblocks.append(ml)
 
         self.conv_post = nn.Conv1d(channels, 1, kernel_size=7, stride=1, padding=3)
 
@@ -1996,7 +1995,7 @@ class SpeechT5HifiGan(PreTrainedModel):
     def _init_weights(self, module):
         """Initialize the weights."""
         if isinstance(module, (nn.Linear, nn.Conv1d)):
-            module.weight.data.normal_(mean=0.0, std=0.02) # initializer_range
+            module.weight.data.normal_(mean=0.0, std=0.01) # initializer_range
             if module.bias is not None:
                 module.bias.data.zero_()
 
@@ -2041,13 +2040,16 @@ class SpeechT5HifiGan(PreTrainedModel):
         hidden_states = spectrogram.transpose(2, 1)
 
         hidden_states = self.conv_pre(hidden_states)
-        for i in range(self.num_upsamples):
+        for i, ml in enumerate(self.upsampler_resblocks):
             hidden_states = nn.functional.leaky_relu(hidden_states, 0.1) # leaky_relu_slope
-            hidden_states = self.upsampler[i](hidden_states)
-
-            res_state = self.resblocks[i * self.num_kernels](hidden_states)
-            for j in range(1, self.num_kernels):
-                res_state += self.resblocks[i * self.num_kernels + j](hidden_states)
+            res_state = None
+            for j, block in enumerate(ml):
+                if j == 0:
+                    hidden_states = block(hidden_states)
+                elif j == 1:
+                    res_state = block(hidden_states)
+                else:
+                    res_state += block(hidden_states)
             hidden_states = res_state / self.num_kernels
 
         hidden_states = nn.functional.leaky_relu(hidden_states)
