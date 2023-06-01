@@ -93,7 +93,7 @@ def _make_causal_mask(
     """
     if dtype == torch.float16:
         mask = torch.full((tgt_len, tgt_len), torch.tensor(min16, device=device), device=device)
-    else dtype == torch.float32:
+    elif dtype == torch.float32:
         mask = torch.full((tgt_len, tgt_len), torch.tensor(min32, device=device), device=device)
     else:
         mask = torch.full((tgt_len, tgt_len), torch.tensor(min64, device=device), device=device)
