@@ -57,8 +57,6 @@ def shift_tokens_right(input_ids: torch.Tensor, pad_token_id: int, decoder_start
     shifted_input_ids[:, 1:] = input_ids[:, :-1].clone()
     shifted_input_ids[:, 0] = decoder_start_token_id
 
-    if pad_token_id is None:
-        raise ValueError("self.model.config.pad_token_id has to be defined.")
     # replace possible -100 values in labels by `pad_token_id`
     shifted_input_ids.masked_fill_(shifted_input_ids == -100, pad_token_id)
 
@@ -95,12 +93,10 @@ def _make_causal_mask(
     """
     if dtype == torch.float16:
         mask = torch.full((tgt_len, tgt_len), torch.tensor(min16, device=device), device=device)
-    elif dtype == torch.float32:
+    else dtype == torch.float32:
         mask = torch.full((tgt_len, tgt_len), torch.tensor(min32, device=device), device=device)
-    elif dtype == torch.float64:
-        mask = torch.full((tgt_len, tgt_len), torch.tensor(min64, device=device), device=device)
     else:
-        raise RuntimeError(f"Expected dtype to be floating-point, got {dtype}")
+        mask = torch.full((tgt_len, tgt_len), torch.tensor(min64, device=device), device=device)
     mask_cond = torch.arange(mask.size(-1), device=device)
     mask.masked_fill_(mask_cond < (mask_cond + 1).view(mask.size(-1), 1), 0)
     mask = mask.to(dtype)
@@ -130,10 +126,8 @@ def _expand_mask(
         return inverted_mask.masked_fill(inverted_mask.to(torch.bool), min16)
     elif dtype == torch.float32:
         return inverted_mask.masked_fill(inverted_mask.to(torch.bool), min32)
-    elif dtype == torch.float64:
-        return inverted_mask.masked_fill(inverted_mask.to(torch.bool), min64)
     else:
-        raise RuntimeError(f"Expected dtype to be floating-point, got {dtype}")
+        return inverted_mask.masked_fill(inverted_mask.to(torch.bool), min64)
 
 
 # Copied from transformers.models.wav2vec2.modeling_wav2vec2._compute_mask_indices
@@ -162,15 +156,6 @@ def _compute_mask_indices(
                         each batch dimension.
     """
     batch_size, sequence_length = shape
-
-    if mask_length < 1:
-        raise ValueError("`mask_length` has to be bigger than 0.")
-
-    if mask_length > sequence_length:
-        raise ValueError(
-            f"`mask_length` has to be smaller than `sequence_length`, but got `mask_length`: {mask_length}"
-            f" and `sequence_length`: {sequence_length}`"
-        )
 
     # epsilon is used for probabilistic rounding
     epsilon = np.random.rand(1).item()
@@ -504,14 +489,10 @@ class SpeechT5FeatureEncoder(nn.Module):
             conv_layers = [SpeechT5GroupNormConvLayer(config, layer_id=0)] + [
                 SpeechT5NoLayerNormConvLayer(config, layer_id=i + 1) for i in range(config.num_feat_extract_layers - 1)
             ]
-        elif config.feat_extract_norm == "layer":
+        else:
             conv_layers = [
                 SpeechT5LayerNormConvLayer(config, layer_id=i) for i in range(config.num_feat_extract_layers)
             ]
-        else:
-            raise ValueError(
-                f"`config.feat_extract_norm` is {config.feat_extract_norm}, but has to be one of ['group', 'layer']"
-            )
         self.conv_layers = nn.ModuleList(conv_layers)
         self.gradient_checkpointing = False
         self._requires_grad = True
@@ -724,11 +705,8 @@ class SpeechT5TextDecoderPrenet(nn.Module):
             Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
         ]] = None,
     ):
-        if input_ids is not None:
-            input_shape = input_ids.size()
-            input_ids = input_ids.view(-1, input_shape[-1])
-        else:
-            raise ValueError("You have to specify `decoder_input_ids`")
+        input_shape = input_ids.size()
+        input_ids = input_ids.view(-1, input_shape[-1])
 
         past_key_values_length = past_key_values[0][0].shape[2] if past_key_values is not None else 0
         positions = self.embed_positions(input_ids, past_key_values_length)
@@ -776,11 +754,6 @@ class SpeechT5Attention(nn.Module):
         self.dropout = dropout
         self.head_dim = embed_dim // num_heads
 
-        if (self.head_dim * num_heads) != self.embed_dim:
-            raise ValueError(
-                f"embed_dim must be divisible by num_heads (got `embed_dim`: {self.embed_dim}"
-                f" and `num_heads`: {num_heads})."
-            )
         self.scaling = self.head_dim**-0.5
         self.is_decoder = is_decoder
 
@@ -835,12 +808,6 @@ class SpeechT5Attention(nn.Module):
         src_len = key_states.size(1)
         attn_weights = torch.bmm(query_states, key_states.transpose(1, 2))
 
-        if attn_weights.size() != (bsz * self.num_heads, tgt_len, src_len):
-            raise ValueError(
-                f"Attention weights should be of size {(bsz * self.num_heads, tgt_len, src_len)}, but is"
-                f" {attn_weights.size()}"
-            )
-
         # relative attention bias
         if position_bias is not None:
             reshape_q = query_states.contiguous().view(bsz * self.num_heads, -1, self.head_dim).transpose(0, 1)
@@ -851,21 +818,12 @@ class SpeechT5Attention(nn.Module):
             attn_weights += rel_pos_bias
 
         if attention_mask is not None:
-            if attention_mask.size() != (bsz, 1, tgt_len, src_len):
-                raise ValueError(
-                    f"Attention mask should be of size {(bsz, 1, tgt_len, src_len)}, but is {attention_mask.size()}"
-                )
             attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len) + attention_mask
             attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
 
         attn_weights = nn.functional.softmax(attn_weights, dim=-1)
 
         if layer_head_mask is not None:
-            if layer_head_mask.size() != (self.num_heads,):
-                raise ValueError(
-                    f"Head mask for a single layer should be of size {(self.num_heads,)}, but is"
-                    f" {layer_head_mask.size()}"
-                )
             attn_weights = layer_head_mask.view(1, -1, 1, 1) * attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
             attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
 
@@ -874,12 +832,6 @@ class SpeechT5Attention(nn.Module):
         attn_probs = nn.functional.dropout(attn_weights, p=self.dropout, training=self.training)
 
         attn_output = torch.bmm(attn_probs, value_states)
-
-        if attn_output.size() != (bsz * self.num_heads, tgt_len, self.head_dim):
-            raise ValueError(
-                f"`attn_output` should be of size {(bsz, self.num_heads, tgt_len, self.head_dim)}, but is"
-                f" {attn_output.size()}"
-            )
 
         attn_output = attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)
         attn_output = attn_output.transpose(1, 2)
@@ -913,11 +865,6 @@ class SpeechT5CrossAttention(nn.Module):
         self.dropout = dropout
         self.head_dim = embed_dim // num_heads
 
-        if (self.head_dim * num_heads) != self.embed_dim:
-            raise ValueError(
-                f"embed_dim must be divisible by num_heads (got `embed_dim`: {self.embed_dim}"
-                f" and `num_heads`: {num_heads})."
-            )
         self.scaling = self.head_dim**-0.5
         self.is_decoder = is_decoder
 
@@ -971,12 +918,6 @@ class SpeechT5CrossAttention(nn.Module):
         src_len = key_states.size(1)
         attn_weights = torch.bmm(query_states, key_states.transpose(1, 2))
 
-        if attn_weights.size() != (bsz * self.num_heads, tgt_len, src_len):
-            raise ValueError(
-                f"Attention weights should be of size {(bsz * self.num_heads, tgt_len, src_len)}, but is"
-                f" {attn_weights.size()}"
-            )
-
         # relative attention bias
         if position_bias is not None:
             reshape_q = query_states.contiguous().view(bsz * self.num_heads, -1, self.head_dim).transpose(0, 1)
@@ -987,21 +928,12 @@ class SpeechT5CrossAttention(nn.Module):
             attn_weights += rel_pos_bias
 
         if attention_mask is not None:
-            if attention_mask.size() != (bsz, 1, tgt_len, src_len):
-                raise ValueError(
-                    f"Attention mask should be of size {(bsz, 1, tgt_len, src_len)}, but is {attention_mask.size()}"
-                )
             attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len) + attention_mask
             attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
 
         attn_weights = nn.functional.softmax(attn_weights, dim=-1)
 
         if layer_head_mask is not None:
-            if layer_head_mask.size() != (self.num_heads,):
-                raise ValueError(
-                    f"Head mask for a single layer should be of size {(self.num_heads,)}, but is"
-                    f" {layer_head_mask.size()}"
-                )
             attn_weights = layer_head_mask.view(1, -1, 1, 1) * attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
             attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
 
@@ -1010,12 +942,6 @@ class SpeechT5CrossAttention(nn.Module):
         attn_probs = nn.functional.dropout(attn_weights, p=self.dropout, training=self.training)
 
         attn_output = torch.bmm(attn_probs, value_states)
-
-        if attn_output.size() != (bsz * self.num_heads, tgt_len, self.head_dim):
-            raise ValueError(
-                f"`attn_output` should be of size {(bsz, self.num_heads, tgt_len, self.head_dim)}, but is"
-                f" {attn_output.size()}"
-            )
 
         attn_output = attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)
         attn_output = attn_output.transpose(1, 2)
@@ -1299,14 +1225,6 @@ class SpeechT5Encoder(SpeechT5PreTrainedModel):
         hidden_states = self.dropout(hidden_states)
 
         position_bias = self.embed_positions(hidden_states)
-
-        # check if head_mask has a correct number of layers specified if desired
-        if head_mask is not None:
-            if head_mask.size()[0] != len(self.layers):
-                raise ValueError(
-                    f"The head_mask should be specified for {len(self.layers)} layers, but it is for"
-                    f" {head_mask.size()[0]}."
-                )
 
         for idx, encoder_layer in enumerate(self.layers):
             # under deepspeed zero3 all gpus must run in sync
@@ -1894,14 +1812,6 @@ class SpeechT5ForTextToSpeech(SpeechT5PreTrainedModel):
 
     def __init__(self, config: SpeechT5Config):
         super().__init__(config)
-
-        if config.vocab_size is None:
-            raise ValueError(
-                f"You are trying to instantiate {self.__class__} with a configuration that does not define the"
-                " vocabulary size of the language model head. Please instantiate the model as follows:"
-                " `SpeechT5ForTextToSpeech.from_pretrained(..., vocab_size=vocab_size)`. or define `vocab_size` of"
-                " your model's configuration."
-            )
 
         text_encoder = SpeechT5EncoderWithTextPrenet(config)
         speech_decoder = SpeechT5DecoderWithSpeechPrenet(config)
