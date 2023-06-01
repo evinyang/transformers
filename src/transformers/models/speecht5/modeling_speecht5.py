@@ -2044,9 +2044,11 @@ class SpeechT5HifiGan(PreTrainedModel):
         for i, upsampler in enumerate(self.upsampler):
             hidden_states = nn.functional.leaky_relu(hidden_states, 0.1) # leaky_relu_slope
             hidden_states = upsampler(hidden_states)
-            res_state = self.resblocks[i * self.num_kernels](hidden_states)
+            block: HifiGanResidualBlock = self.resblocks[i * self.num_kernels]
+            res_state = block(hidden_states)
             for j in range(1, self.num_kernels):
-                res_state += self.resblocks[i * self.num_kernels + j](hidden_states)
+                block: HifiGanResidualBlock = self.resblocks[i * self.num_kernels + j]
+                res_state += block(hidden_states)
             hidden_states = res_state / self.num_kernels
 
         hidden_states = nn.functional.leaky_relu(hidden_states)
