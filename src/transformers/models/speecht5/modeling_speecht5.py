@@ -2044,22 +2044,22 @@ class SpeechT5HifiGan(PreTrainedModel):
         
         hidden_states = nn.functional.leaky_relu(hidden_states, 0.1) # leaky_relu_slope
         hidden_states = self.upsampler[0](hidden_states)
-        res_state = self.resblocks[0](hidden_states) + self.resblocks[1](hidden_states) + self.resblocks[2](hidden_states) + self.resblocks[3](hidden_states)
+        res_state = self.resblocks[0](hidden_states) + self.resblocks[1](hidden_states) + self.resblocks[2](hidden_states)
         hidden_states = res_state / self.num_kernels
         
         hidden_states = nn.functional.leaky_relu(hidden_states, 0.1) # leaky_relu_slope
         hidden_states = self.upsampler[1](hidden_states)
-        res_state = self.resblocks[4](hidden_states) + self.resblocks[5](hidden_states) + self.resblocks[6](hidden_states) + self.resblocks[7](hidden_states)
+        res_state = self.resblocks[3](hidden_states) + self.resblocks[4](hidden_states) + self.resblocks[5](hidden_states)
         hidden_states = res_state / self.num_kernels
         
         hidden_states = nn.functional.leaky_relu(hidden_states, 0.1) # leaky_relu_slope
         hidden_states = self.upsampler[2](hidden_states)
-        res_state = self.resblocks[8](hidden_states) + self.resblocks[9](hidden_states) + self.resblocks[10](hidden_states) + self.resblocks[11](hidden_states)
+        res_state = self.resblocks[6](hidden_states) + self.resblocks[7](hidden_states) + self.resblocks[8](hidden_states)
         hidden_states = res_state / self.num_kernels
         
         hidden_states = nn.functional.leaky_relu(hidden_states, 0.1) # leaky_relu_slope
         hidden_states = self.upsampler[3](hidden_states)
-        res_state = self.resblocks[12](hidden_states) + self.resblocks[13](hidden_states) + self.resblocks[14](hidden_states) + self.resblocks[15](hidden_states)
+        res_state = self.resblocks[9](hidden_states) + self.resblocks[10](hidden_states) + self.resblocks[11](hidden_states)
         hidden_states = res_state / self.num_kernels
 
         hidden_states = nn.functional.leaky_relu(hidden_states)
