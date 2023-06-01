@@ -1261,7 +1261,7 @@ class SpeechT5EncoderWithTextPrenet(SpeechT5PreTrainedModel):
 
     def forward(
         self,
-        input_values: torch.FloatTensor,
+        input_values: torch.LongTensor,
         attention_mask: Optional[torch.Tensor] = None,
         head_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
