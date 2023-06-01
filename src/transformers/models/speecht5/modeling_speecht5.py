@@ -665,7 +665,7 @@ class SpeechT5TextEncoderPrenet(nn.Module):
     def set_input_embeddings(self, value):
         self.embed_tokens = value
 
-    def forward(self, input_ids: torch.Tensor):
+    def forward(self, input_ids: torch.LongTensor):
         inputs_embeds = self.embed_tokens(input_ids)
         inputs_embeds = self.encode_positions(inputs_embeds)
         return inputs_embeds
