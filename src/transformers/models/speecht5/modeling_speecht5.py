@@ -600,7 +600,7 @@ class SpeechT5BatchNormConvLayer(nn.Module):
         self.conv = nn.Conv1d(
             in_conv_dim,
             out_conv_dim,
-            kernel_size=5 # speech_decoder_postnet_kernel,
+            kernel_size=5, # speech_decoder_postnet_kernel,
             stride=1,
             padding=2, # (speech_decoder_postnet_kernel - 1) // 2
             bias=False,
