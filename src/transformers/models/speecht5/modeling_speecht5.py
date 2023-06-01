@@ -27,7 +27,7 @@ from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, L1Loss
 
 from ...activations import ACT2FN
 from ...modeling_utils import PreTrainedModel
-from ...utils import add_start_docstrings, add_start_docstrings_to_model_forward, logging, replace_return_docstrings
+from ...utils import add_start_docstrings, logging, replace_return_docstrings
 from .configuration_speecht5 import SpeechT5Config, SpeechT5HifiGanConfig
 
 
@@ -1749,56 +1749,6 @@ class SpeechT5Model(SpeechT5PreTrainedModel):
 
     def forward(self):
         return None
-#     @add_start_docstrings_to_model_forward(SPEECHT5_INPUTS_DOCSTRING)
-#     def forward(
-#         self,
-#         input_values: Optional[torch.Tensor] = None,
-#         attention_mask: Optional[torch.LongTensor] = None,
-#         decoder_input_values: Optional[torch.Tensor] = None,
-#         decoder_attention_mask: Optional[torch.LongTensor] = None,
-#         head_mask: Optional[torch.FloatTensor] = None,
-#         decoder_head_mask: Optional[torch.FloatTensor] = None,
-#         cross_attn_head_mask: Optional[torch.Tensor] = None,
-#         encoder_outputs: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
-#         past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
-#         speaker_embeddings: Optional[torch.FloatTensor] = None,
-#     ) -> Tuple[torch.FloatTensor]:
-#         r"""
-#         input_values (`torch.Tensor` of shape `(batch_size, sequence_length)`):
-#             Depending on which encoder is being used, the `input_values` are either: float values of the input raw
-#             speech waveform, or indices of input sequence tokens in the vocabulary, or hidden states.
-
-#         decoder_input_values (`torch.Tensor` of shape `(batch_size, target_sequence_length)`, *optional*):
-#             Depending on which decoder is being used, the `decoder_input_values` are either: float values of log-mel
-#             filterbank features extracted from the raw speech waveform, or indices of decoder input sequence tokens in
-#             the vocabulary, or hidden states.
-
-#         speaker_embeddings (`torch.FloatTensor` of shape `(batch_size, config.speaker_embedding_dim)`, *optional*):
-#             Tensor containing the speaker embeddings.
-
-#         Returns:
-#         """
-#         # Encode if needed (training, first prediction pass)
-#         if encoder_outputs is None:
-#             encoder_outputs = self.encoder(
-#                 input_values=input_values,
-#                 attention_mask=attention_mask,
-#                 head_mask=head_mask,
-#             )
-
-#         encoder_attention_mask = attention_mask
-
-#         decoder_outputs = self.decoder(
-#             input_values=decoder_input_values,
-#             attention_mask=decoder_attention_mask,
-#             encoder_hidden_states=encoder_outputs[0],
-#             encoder_attention_mask=encoder_attention_mask,
-#             speaker_embeddings=speaker_embeddings,
-#             head_mask=decoder_head_mask,
-#             cross_attn_head_mask=cross_attn_head_mask,
-#             past_key_values=past_key_values,
-#         )
-#         return decoder_outputs + encoder_outputs
 
 
 @add_start_docstrings(
